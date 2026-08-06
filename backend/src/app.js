@@ -1,8 +1,12 @@
 require('dotenv').config();
 const express = require('express');
 const { clerkMiddleware, requireAuth } = require('./middleware/auth');
+const webhooksRouter = require('./routes/webhooks');
 
 const app = express();
+
+// Webhook route MUST come before express.json() — needs raw body for signature verification
+app.use('/webhooks', webhooksRouter);
 
 app.use(express.json());
 app.use(clerkMiddleware());
