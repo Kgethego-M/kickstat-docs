@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const { clerkMiddleware, requireAuth } = require('./middleware/auth');
 const webhooksRouter = require('./routes/webhooks');
-const usersRouter = require('./routes/users');
 
 const app = express();
 
@@ -17,8 +16,6 @@ app.use(cors({
 
 app.use(express.json());
 app.use(clerkMiddleware());
-
-app.use('/api/users', usersRouter);
 
 // Public route — health check
 app.get('/api/health', (req, res) => {
