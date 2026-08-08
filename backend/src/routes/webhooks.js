@@ -18,6 +18,14 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req, res
       console.log('New user inserted:', evt.data.id);
     }
 
+    if (evt.type === 'user.deleted') {
+      await pool.query(
+        'DELETE FROM users WHERE clerk_id = $1',
+        [evt.data.id]
+      );
+      console.log('User deleted:', evt.data.id);
+    }
+
     res.sendStatus(200);
   } catch (err) {
     console.error('Webhook error:', err.message);

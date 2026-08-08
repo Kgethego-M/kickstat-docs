@@ -1,15 +1,24 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const { clerkMiddleware, requireAuth } = require('./middleware/auth');
 const webhooksRouter = require('./routes/webhooks');
+const usersRouter = require('./routes/users');
 
 const app = express();
 
 // Webhook route MUST come before express.json() — needs raw body for signature verification
 app.use('/webhooks', webhooksRouter);
 
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:5174'],
+  credentials: true,
+}));
+
 app.use(express.json());
 app.use(clerkMiddleware());
+
+app.use('/api/users', usersRouter);
 
 // Public route — health check
 app.get('/api/health', (req, res) => {

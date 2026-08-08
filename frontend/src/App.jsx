@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
+import AccountSettings from './pages/AccountSettings'
 import ProtectedRoute from './components/ProtectedRoute'
 import './App.css'
 
@@ -13,6 +14,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <AccountSettings />
           </ProtectedRoute>
         }
       />
