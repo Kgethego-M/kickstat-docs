@@ -16,6 +16,7 @@
   "type": "commonjs",
   "dependencies": {
     "@clerk/express": "^2.1.50",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "node-pg-migrate": "^9.0.0",
     "pg": "^8.22.0",
