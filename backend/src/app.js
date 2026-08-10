@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const { clerkMiddleware, requireAuth } = require('./middleware/auth');
 const webhooksRouter = require('./routes/webhooks');
+const squadsRouter = require('./routes/squads');
+const athletesRouter = require('./routes/athletes');
 
 const app = express();
 
@@ -13,9 +15,11 @@ app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:5174'],
   credentials: true,
 }));
-
 app.use(express.json());
 app.use(clerkMiddleware());
+
+app.use('/api/squads', squadsRouter);
+app.use('/api/athletes', athletesRouter);
 
 // Public route — health check
 app.get('/api/health', (req, res) => {

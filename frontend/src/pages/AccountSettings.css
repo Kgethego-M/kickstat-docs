@@ -1,0 +1,8 @@
+.settings-header {
+  margin-bottom: 24px;
+}
+
+.settings-panel {
+  display: flex;
+  justify-content: flex-start;
+}

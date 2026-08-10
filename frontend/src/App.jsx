@@ -1,9 +1,9 @@
 import { Routes, Route } from 'react-router-dom'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
+import Roster from './pages/Roster'
 import AccountSettings from './pages/AccountSettings'
 import ProtectedRoute from './components/ProtectedRoute'
-import './App.css'
 
 function App() {
   return (
@@ -14,6 +14,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/roster"
+        element={
+          <ProtectedRoute>
+            <Roster />
           </ProtectedRoute>
         }
       />
