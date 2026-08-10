@@ -1,22 +1,26 @@
 const express = require('express')
 const crypto = require('crypto')
 const { Pool } = require('pg')
-const { requireAuth } = require('../middleware/auth')
+const { getAuth } = require('../middleware/auth')
 
 const router = express.Router()
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 
-// Create an invite for an assistant — only the coach who owns the squad can invite
-router.post('/', requireAuth(), async (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const clerkId = req.auth.userId
+    const { userId } = getAuth(req)
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+
+    const clerkId = userId
+    console.log('DEBUG clerkId:', clerkId)
     const { email } = req.body
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' })
     }
-
-    // Find the requesting user and confirm they're a coach with a squad
     const userResult = await pool.query(
       'SELECT id, role, squad_id FROM users WHERE clerk_id = $1',
       [clerkId]

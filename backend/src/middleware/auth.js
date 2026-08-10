@@ -1,3 +1,3 @@
-const { clerkMiddleware, requireAuth } = require('@clerk/express');
+const { clerkMiddleware, getAuth } = require('@clerk/express');
 
-module.exports = { clerkMiddleware, requireAuth };
+module.exports = { clerkMiddleware, getAuth };
