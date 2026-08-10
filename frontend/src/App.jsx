@@ -4,6 +4,8 @@ import Dashboard from './pages/Dashboard'
 import Roster from './pages/Roster'
 import AccountSettings from './pages/AccountSettings'
 import ProtectedRoute from './components/ProtectedRoute'
+import Events from './pages/Events'
+import './App.css'
 
 function App() {
   return (
@@ -30,6 +32,14 @@ function App() {
         element={
           <ProtectedRoute>
             <AccountSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/events"
+        element={
+          <ProtectedRoute>
+            <Events />
           </ProtectedRoute>
         }
       />

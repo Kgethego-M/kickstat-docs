@@ -18,6 +18,10 @@ function Dashboard() {
           <h3>Roster</h3>
           <p>Manage your squad and keep athlete details up to date.</p>
         </Link>
+        <Link to="/events" className="dashboard-card">
+          <h3>Events</h3>
+          <p>Schedule trainings and matches, and manage upcoming fixtures.</p>
+        </Link>
         <Link to="/settings" className="dashboard-card">
           <h3>Account</h3>
           <p>Update your profile, password, or delete your account.</p>

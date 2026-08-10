@@ -21,6 +21,7 @@ function Layout({ children }) {
         <nav className="app-nav">
           {navItem('/dashboard', 'Dashboard')}
           {navItem('/roster', 'Roster')}
+          {navItem('/events', 'Events')}
           {navItem('/settings', 'Account')}
         </nav>
         <div className="app-sidebar-footer">

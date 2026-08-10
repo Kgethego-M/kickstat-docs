@@ -5,28 +5,27 @@ const { clerkMiddleware, requireAuth } = require('./middleware/auth');
 const webhooksRouter = require('./routes/webhooks');
 const squadsRouter = require('./routes/squads');
 const athletesRouter = require('./routes/athletes');
-
+const eventsRouter = require('./routes/events');
 const app = express();
 
 // Webhook route MUST come before express.json() — needs raw body for signature verification
 app.use('/webhooks', webhooksRouter);
-
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:5174'],
   credentials: true,
 }));
 app.use(express.json());
 app.use(clerkMiddleware());
-
 app.use('/api/squads', squadsRouter);
 app.use('/api/athletes', athletesRouter);
+app.use('/api/events', eventsRouter);
 
-// Public route — health check
+// Public route health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Protected route example — requires a logged-in user
+// Protected route example requires a logged-in user
 app.get('/api/me', requireAuth(), (req, res) => {
   res.json({ userId: req.auth.userId });
 });
