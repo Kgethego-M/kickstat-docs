@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import AccountSettings from './pages/AccountSettings'
+import InviteAccept from './pages/InviteAccept'
 import ProtectedRoute from './components/ProtectedRoute'
 import './App.css'
 
@@ -25,6 +26,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/invite/:token" element={<InviteAccept />} />
     </Routes>
   )
 }
