@@ -5,6 +5,7 @@ const { clerkMiddleware, requireAuth } = require('./middleware/auth');
 const webhooksRouter = require('./routes/webhooks');
 const squadsRouter = require('./routes/squads');
 const athletesRouter = require('./routes/athletes');
+const invitesRouter = require('./routes/invites');
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(clerkMiddleware());
 
 app.use('/api/squads', squadsRouter);
 app.use('/api/athletes', athletesRouter);
+app.use('/api/invites', invitesRouter);
 
 // Public route — health check
 app.get('/api/health', (req, res) => {

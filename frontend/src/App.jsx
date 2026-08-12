@@ -3,6 +3,7 @@ import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import Roster from './pages/Roster'
 import AccountSettings from './pages/AccountSettings'
+import InviteAccept from './pages/InviteAccept'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/invite/:token" element={<InviteAccept />} />
     </Routes>
   )
 }
