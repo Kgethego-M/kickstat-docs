@@ -1,26 +1,25 @@
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-  /* Core palette */
-  --color-ink: #14171c;
-  --color-ink-soft: #6b7280;
-  --color-gold: #c9a227;
-  --color-gold-deep: #9c7a1a;
-  --color-pitch: #f7f7f5;
-  --color-sky: #3b82c4;
-  --color-sky-soft: rgba(59, 130, 196, 0.12);
+  --color-pitch: #ffffff;
+  --color-ink: #141414;
+  --color-ink-soft: #4a4a4a;
+  --color-gold: #c9a24b;
+  --color-gold-deep: #a9843a;
+  --color-sky: #4a90d9;
+  --color-sky-soft: rgba(74, 144, 217, 0.1);
   --color-chalk: #f5f4f1;
-  --color-line: #e2e0da;
+  --color-line: #e4e1d9;
+  --shadow-card: 0 1px 2px rgba(20, 20, 20, 0.04), 0 8px 24px rgba(20, 20, 20, 0.07);
+  --radius: 10px;
+  --radius-sm: 6px;
 
-  /* Shape */
-  --radius: 14px;
-  --radius-sm: 8px;
-  --shadow-card: 0 10px 24px rgba(20, 23, 28, 0.08);
+  --font-display: 'Barlow Condensed', 'Segoe UI', sans-serif;
+  --font-body: 'Inter', 'Segoe UI', sans-serif;
 
-  /* Type */
-  --font-display: 'Oswald', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --font-body: system-ui, 'Segoe UI', Roboto, sans-serif;
-
+  font: 16px/1.55 var(--font-body);
+  color: var(--color-ink);
+  background: var(--color-pitch);
   color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -49,52 +48,69 @@ h1, h2, h3 {
   font-family: var(--font-display);
   font-weight: 600;
   color: var(--color-ink);
-  margin: 0 0 8px;
+  margin: 0;
+  letter-spacing: 0.01em;
 }
 
-h1 { font-size: 32px; letter-spacing: -0.02em; }
-h2 { font-size: 24px; }
-h3 { font-size: 18px; }
+h1 {
+  font-size: 44px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+h2 {
+  font-size: 26px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+h3 {
+  font-size: 19px;
+}
 
 p {
   margin: 0;
+  color: var(--color-ink-soft);
 }
 
 a {
   color: var(--color-sky);
+  text-decoration: none;
 }
 
-/* ---- Buttons — used across every page (Roster, Events, Live, Home, etc.) ---- */
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  font-family: var(--font-body);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-sky);
+  outline-offset: 2px;
+}
 
 .btn {
   font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-size: 13px;
-  padding: 10px 18px;
+  letter-spacing: 0.04em;
+  padding: 11px 22px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.12s ease, opacity 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
 }
 
-.btn:hover {
-  transform: translateY(-1px);
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
+.btn:active {
+  transform: translateY(1px);
 }
 
 .btn-gold {
   background: var(--color-gold);
-  color: var(--color-ink);
+  color: var(--color-pitch);
 }
 
 .btn-gold:hover {
@@ -103,20 +119,28 @@ a {
 
 .btn-ghost {
   background: transparent;
-  border-color: var(--color-line);
   color: var(--color-ink);
+  border-color: var(--color-line);
 }
 
 .btn-ghost:hover {
-  border-color: var(--color-gold);
+  border-color: var(--color-ink);
 }
 
 .btn-danger {
   background: transparent;
-  border-color: rgba(179, 59, 59, 0.4);
   color: #b33b3b;
+  border-color: var(--color-line);
 }
 
 .btn-danger:hover {
-  background: rgba(179, 59, 59, 0.08);
+  border-color: #b33b3b;
+  background: rgba(179, 59, 59, 0.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
 }

@@ -15,15 +15,14 @@ function Layout({ children }) {
     <div className="app-shell">
       <aside className="app-sidebar">
         <div className="app-crest">
-          <span className="app-crest-mark">KS</span>
-          <span className="app-crest-name">KickStat</span>
+          <span className="app-crest-mark">SC</span>
+          <span className="app-crest-name">Sport Coaching</span>
         </div>
         <nav className="app-nav">
           {navItem('/dashboard', 'Dashboard')}
           {navItem('/roster', 'Roster')}
           {navItem('/events', 'Events')}
-          {navItem('/live', 'Live')}
-          {navItem('/settings', 'Settings')}
+          {navItem('/settings', 'Account')}
         </nav>
         <div className="app-sidebar-footer">
           <UserButton />

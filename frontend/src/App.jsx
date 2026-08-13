@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
+import Roster from './pages/Roster'
 import AccountSettings from './pages/AccountSettings'
 import InviteAccept from './pages/InviteAccept'
 import Roster from './pages/Roster'
@@ -9,6 +10,7 @@ import EventDetail from './pages/EventDetail'
 import Live from './pages/Live'
 import LiveMatch from './pages/LiveMatch'
 import ProtectedRoute from './components/ProtectedRoute'
+import Events from './pages/Events'
 import './App.css'
 
 function App() {
@@ -68,6 +70,14 @@ function App() {
         element={
           <ProtectedRoute>
             <AccountSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/events"
+        element={
+          <ProtectedRoute>
+            <Events />
           </ProtectedRoute>
         }
       />
