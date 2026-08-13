@@ -3,6 +3,11 @@ import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import AccountSettings from './pages/AccountSettings'
 import InviteAccept from './pages/InviteAccept'
+import Roster from './pages/Roster'
+import Events from './pages/Events'
+import EventDetail from './pages/EventDetail'
+import Live from './pages/Live'
+import LiveMatch from './pages/LiveMatch'
 import ProtectedRoute from './components/ProtectedRoute'
 import './App.css'
 
@@ -15,6 +20,46 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/roster"
+        element={
+          <ProtectedRoute>
+            <Roster />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/events"
+        element={
+          <ProtectedRoute>
+            <Events />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/events/:id"
+        element={
+          <ProtectedRoute>
+            <EventDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/live"
+        element={
+          <ProtectedRoute>
+            <Live />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/live/:id"
+        element={
+          <ProtectedRoute>
+            <LiveMatch />
           </ProtectedRoute>
         }
       />

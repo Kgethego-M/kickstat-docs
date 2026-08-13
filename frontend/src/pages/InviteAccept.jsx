@@ -1,14 +1,18 @@
 import { useParams } from 'react-router-dom'
 import { SignedIn, SignedOut, SignUpButton, SignInButton, useUser } from '@clerk/clerk-react'
+import Layout from '../components/Layout'
 
 function InviteAccept() {
   const { token } = useParams()
   const { user } = useUser()
 
   return (
-    <div style={{ padding: '2rem', textAlign: 'center' }}>
-      <h1>You've been invited!</h1>
-      <p>Sign up to join as an assistant.</p>
+    <Layout>
+      <div className="dashboard-header">
+        <span className="dashboard-eyebrow">Invite</span>
+        <h1>You've been invited!</h1>
+        <p>Sign up to join as an assistant.</p>
+      </div>
 
       <SignedOut>
         <SignUpButton mode="modal" />
@@ -27,7 +31,7 @@ function InviteAccept() {
       <p style={{ marginTop: '2rem', fontSize: '0.8rem', color: '#888' }}>
         Invite token: {token}
       </p>
-    </div>
+    </Layout>
   )
 }
 

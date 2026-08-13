@@ -1,0 +1,15 @@
+.settings-header {
+  margin-bottom: 24px;
+}
+
+.settings-panel {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 28px;
+}
+
+.settings-saved {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #1f6f4a;
+}

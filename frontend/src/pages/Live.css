@@ -1,0 +1,18 @@
+.live-empty {
+  max-width: 480px;
+  padding: 48px 24px;
+  text-align: center;
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-chalk);
+  margin: 40px auto 0;
+}
+
+.live-empty h1 {
+  margin: 8px 0 12px;
+}
+
+.live-empty p {
+  margin-bottom: 20px;
+  color: var(--color-ink-soft);
+}
