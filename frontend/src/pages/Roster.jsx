@@ -35,9 +35,10 @@ function Roster() {
     }
   }, [getToken])
 
-  useEffect(() => {
-    loadAthletes()
-  }, [loadAthletes])
+useEffect(() => {
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  loadAthletes()
+}, [loadAthletes])
 
   function openAddForm() {
     setForm(emptyForm)
