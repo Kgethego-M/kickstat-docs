@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { clerkMiddleware, requireAuth } = require('./middleware/auth');
+const { clerkMiddleware, getAuth } = require('./middleware/auth');
 const webhooksRouter = require('./routes/webhooks');
 const squadsRouter = require('./routes/squads');
 const athletesRouter = require('./routes/athletes');
@@ -9,7 +9,6 @@ const invitesRouter = require('./routes/invites');
 
 const app = express();
 
-// Webhook route MUST come before express.json() — needs raw body for signature verification
 app.use('/webhooks', webhooksRouter);
 
 app.use(cors({
@@ -23,14 +22,16 @@ app.use('/api/squads', squadsRouter);
 app.use('/api/athletes', athletesRouter);
 app.use('/api/invites', invitesRouter);
 
-// Public route — health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Protected route example — requires a logged-in user
-app.get('/api/me', requireAuth(), (req, res) => {
-  res.json({ userId: req.auth.userId });
+app.get('/api/me', (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  res.json({ userId });
 });
 
 const PORT = process.env.PORT || 5000;
