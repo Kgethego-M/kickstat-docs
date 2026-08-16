@@ -11,7 +11,7 @@ exports.up = (pgm) => {
 
   pgm.sql(`
     ALTER TABLE users
-    ADD CONSTRAINT IF NOT EXISTS fk_users_squad
+    ADD CONSTRAINT fk_users_squad
     FOREIGN KEY (squad_id) REFERENCES squads(id) ON DELETE SET NULL;
   `);
 
