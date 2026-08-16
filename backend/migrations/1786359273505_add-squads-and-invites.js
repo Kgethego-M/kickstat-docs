@@ -1,32 +1,35 @@
 exports.up = (pgm) => {
-  pgm.createTable('squads', {
-    id: 'id',
-    name: { type: 'varchar(255)', notNull: true, default: 'My Squad' },
-    coach_id: { type: 'integer', notNull: true, references: 'users', onDelete: 'CASCADE' },
-    created_at: { type: 'timestamp', default: pgm.func('now()') },
-  });
+  // Idempotent: roster migrations may have already created these tables.
+  pgm.sql(`
+    CREATE TABLE IF NOT EXISTS squads (
+      id serial PRIMARY KEY,
+      name varchar(255) NOT NULL DEFAULT 'My Squad',
+      coach_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at timestamp DEFAULT now()
+    );
+  `);
 
-  pgm.addConstraint('users', 'fk_users_squad', {
-    foreignKeys: {
-      columns: 'squad_id',
-      references: 'squads(id)',
-      onDelete: 'SET NULL',
-    },
-  });
+  pgm.sql(`
+    ALTER TABLE users
+    ADD CONSTRAINT IF NOT EXISTS fk_users_squad
+    FOREIGN KEY (squad_id) REFERENCES squads(id) ON DELETE SET NULL;
+  `);
 
-  pgm.createTable('invites', {
-    id: 'id',
-    email: { type: 'varchar(255)', notNull: true },
-    squad_id: { type: 'integer', notNull: true, references: 'squads', onDelete: 'CASCADE' },
-    invited_by: { type: 'integer', notNull: true, references: 'users' },
-    token: { type: 'varchar(255)', notNull: true, unique: true },
-    status: { type: 'varchar(20)', notNull: true, default: 'pending' }, // pending | accepted | expired
-    created_at: { type: 'timestamp', default: pgm.func('now()') },
-  });
+  pgm.sql(`
+    CREATE TABLE IF NOT EXISTS invites (
+      id serial PRIMARY KEY,
+      email varchar(255) NOT NULL,
+      squad_id integer NOT NULL REFERENCES squads(id) ON DELETE CASCADE,
+      invited_by integer NOT NULL REFERENCES users(id),
+      token varchar(255) NOT NULL UNIQUE,
+      status varchar(20) NOT NULL DEFAULT 'pending',
+      created_at timestamp DEFAULT now()
+    );
+  `);
 };
 
 exports.down = (pgm) => {
-  pgm.dropTable('invites');
-  pgm.dropConstraint('users', 'fk_users_squad');
-  pgm.dropTable('squads');
+  pgm.sql('DROP TABLE IF EXISTS invites;');
+  pgm.sql('ALTER TABLE users DROP CONSTRAINT IF EXISTS fk_users_squad;');
+  pgm.sql('DROP TABLE IF EXISTS squads;');
 };

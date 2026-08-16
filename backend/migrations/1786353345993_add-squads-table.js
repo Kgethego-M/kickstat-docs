@@ -7,7 +7,7 @@ exports.up = (pgm) => {
       references: 'users',
       onDelete: 'CASCADE',
     },
-    name: { type: 'varchar(100)', notNull: true },
+    name: { type: 'varchar(255)', notNull: true, default: 'My Squad' },
     created_at: { type: 'timestamp', default: pgm.func('now()') },
   });
 };
