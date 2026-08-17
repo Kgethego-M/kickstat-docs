@@ -3,14 +3,6 @@ import request from 'supertest'
 import express from 'express'
 import { pool, resetDatabase, seedCoach } from './setup'
 
-// Mocking the actual @clerk/express package (not our thin middleware/auth.js
-// wrapper around it) — this is what reliably intercepts every require() of it,
-// regardless of which file pulls it in.
-vi.mock('@clerk/express', () => ({
-  requireAuth: () => (req, res, next) => next(),
-  getAuth: () => ({ userId: 'test_clerk_user' }),
-  clerkMiddleware: () => (req, res, next) => next(),
-}))
 
 import eventsRouter from '../../src/routes/events'
 
