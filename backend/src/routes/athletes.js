@@ -1,46 +1,16 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { requireAuth, getAuth } = require('../middleware/auth');
+const { getOwnedSquadId } = require('./_squad');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
-// Helper: get the squad_id owned by the logged-in coach, creating one if it doesn't exist yet
-async function getOwnedSquadId(clerkUserId) {
-  const userResult = await pool.query(
-    'SELECT id FROM users WHERE clerk_id = $1',
-    [clerkUserId]
-  );
-
-  if (userResult.rows.length === 0) {
-    return null;
-  }
-
-  const userId = userResult.rows[0].id;
-
-  let squadResult = await pool.query(
-    'SELECT id FROM squads WHERE coach_id = $1',
-    [userId]
-  );
-
-  if (squadResult.rows.length === 0) {
-    squadResult = await pool.query(
-      'INSERT INTO squads (coach_id, name) VALUES ($1, $2) RETURNING id',
-      [userId, 'My Squad']
-    );
-  }
-
-  return squadResult.rows[0].id;
-}
 
 // List the logged-in coach's roster
 router.get('/', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
-    const squadId = await getOwnedSquadId(clerkUserId);
-    if (!squadId) {
-      return res.json([]);
-    }
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
 
     const result = await pool.query(
       'SELECT * FROM athletes WHERE squad_id = $1 ORDER BY name',
@@ -63,10 +33,7 @@ router.post('/', requireAuth(), async (req, res) => {
     }
 
     const { userId: clerkUserId } = getAuth(req);
-    const squadId = await getOwnedSquadId(clerkUserId);
-    if (!squadId) {
-      return res.status(404).json({ error: 'Squad not found for this coach' });
-    }
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
 
     const result = await pool.query(
       `INSERT INTO athletes (squad_id, name, position, squad_number, date_of_birth, contact_info)
@@ -74,9 +41,55 @@ router.post('/', requireAuth(), async (req, res) => {
       [squadId, name.trim(), position || null, squad_number || null, date_of_birth || null, contact_info || null]
     );
 
-    res.status(201).json(result.rows[0]);
+res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error('Error adding athlete:', err.message);
+    console.error('Error creating log entry:', err);
+    res.status(500).json({ error: 'Server error', detail: err.message });
+  }
+});
+
+// GET /api/athletes/:id/stats — per-athlete summary derived from logged events (US17)
+// NOTE: "appearances" here = distinct events this athlete has a logged action in.
+// There's no separate roster/lineup-per-event table yet, so an athlete who played
+// but never had an action logged against them won't be counted as an appearance.
+router.get('/:id/stats', requireAuth(), async (req, res) => {
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const athleteResult = await pool.query(
+      'SELECT * FROM athletes WHERE id = $1 AND squad_id = $2',
+      [req.params.id, squadId]
+    );
+    if (athleteResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Athlete not found' });
+    }
+
+    const logsResult = await pool.query(
+      `SELECT l.*, e.event_date, e.opponent
+       FROM log_entries l
+       JOIN events e ON e.id = l.event_id
+       WHERE l.athlete_id = $1 AND l.deleted_at IS NULL
+       ORDER BY e.event_date DESC`,
+      [req.params.id]
+    );
+    const logs = logsResult.rows;
+
+    const goals = logs
+      .filter((l) => l.action_type === 'goal')
+      .reduce((sum, l) => sum + l.value, 0);
+    const penalties = logs.filter((l) => l.action_type.includes('penalty')).length;
+    const yellowCards = logs.filter((l) => l.action_type === 'yellow_card').length;
+    const redCards = logs.filter((l) => l.action_type === 'red_card').length;
+    const appearances = new Set(logs.map((l) => l.event_id)).size;
+
+    res.json({
+      athlete: athleteResult.rows[0],
+      stats: { goals, penalties, yellowCards, redCards, appearances },
+      logs,
+    });
+  } catch (err) {
+    console.error('Error fetching athlete stats:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -85,10 +98,7 @@ router.post('/', requireAuth(), async (req, res) => {
 router.patch('/:id', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
-    const squadId = await getOwnedSquadId(clerkUserId);
-    if (!squadId) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
 
     const athleteCheck = await pool.query(
       'SELECT id FROM athletes WHERE id = $1 AND squad_id = $2',
@@ -123,10 +133,7 @@ router.patch('/:id', requireAuth(), async (req, res) => {
 router.delete('/:id', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
-    const squadId = await getOwnedSquadId(clerkUserId);
-    if (!squadId) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
 
     const result = await pool.query(
       'DELETE FROM athletes WHERE id = $1 AND squad_id = $2 RETURNING id',

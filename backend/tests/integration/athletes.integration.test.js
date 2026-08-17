@@ -1,0 +1,87 @@
+import { describe, test, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest'
+import request from 'supertest'
+import express from 'express'
+import { pool, resetDatabase, seedCoach } from './setup'
+
+// Mocking the actual @clerk/express package (not our thin middleware/auth.js
+// wrapper around it) — this is what reliably intercepts every require() of it,
+// regardless of which file pulls it in.
+vi.mock('@clerk/express', () => ({
+  requireAuth: () => (req, res, next) => next(),
+  getAuth: () => ({ userId: 'test_clerk_user' }),
+  clerkMiddleware: () => (req, res, next) => next(),
+}))
+
+import athletesRouter from '../../src/routes/athletes'
+import eventsRouter from '../../src/routes/events'
+
+const app = express()
+app.use(express.json())
+app.use('/api/athletes', athletesRouter)
+app.use('/api/events', eventsRouter)
+
+let squadId
+
+beforeAll(async () => {
+  try {
+    await pool.query('SELECT 1')
+  } catch (err) {
+    throw new Error(
+      'Could not reach the test database. Create it and run migrations against it first — see the setup instructions.\n' +
+        `Original error: ${err.message}`
+    )
+  }
+})
+
+beforeEach(async () => {
+  await resetDatabase()
+  const seeded = await seedCoach()
+  squadId = seeded.squadId
+})
+
+afterAll(async () => {
+  await pool.end()
+})
+
+describe('US17 (integration) — per-athlete summary, aggregated across real events', () => {
+  test('AC: goals/penalties/cards/appearances aggregate correctly across two matches', async () => {
+    const athleteRes = await pool.query(
+      `INSERT INTO athletes (squad_id, name, squad_number) VALUES ($1, 'Marcus Hale', 9) RETURNING *`,
+      [squadId]
+    )
+    const athlete = athleteRes.rows[0]
+
+    const event1 = await pool.query(
+      `INSERT INTO events (squad_id, opponent, event_date, created_by)
+       VALUES ($1, 'Riverside FC', now(), (SELECT id FROM users WHERE clerk_id = 'test_clerk_user'))
+       RETURNING *`,
+      [squadId]
+    )
+    const event2 = await pool.query(
+      `INSERT INTO events (squad_id, opponent, event_date, created_by)
+       VALUES ($1, 'Eastview Rovers', now(), (SELECT id FROM users WHERE clerk_id = 'test_clerk_user'))
+       RETURNING *`,
+      [squadId]
+    )
+
+    await request(app)
+      .post(`/api/events/${event1.rows[0].id}/logs`)
+      .send({ athlete_id: athlete.id, action_type: 'goal', is_scoring: true })
+    await request(app)
+      .post(`/api/events/${event1.rows[0].id}/logs`)
+      .send({ athlete_id: athlete.id, action_type: 'goal', is_scoring: true })
+    await request(app)
+      .post(`/api/events/${event2.rows[0].id}/logs`)
+      .send({ athlete_id: athlete.id, action_type: 'yellow_card' })
+
+    const res = await request(app).get(`/api/athletes/${athlete.id}/stats`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.stats).toEqual({ goals: 2, penalties: 0, yellowCards: 1, redCards: 0, appearances: 2 })
+  })
+
+  test('404s for an athlete id that does not exist in this squad', async () => {
+    const res = await request(app).get('/api/athletes/999999/stats')
+    expect(res.status).toBe(404)
+  })
+})
