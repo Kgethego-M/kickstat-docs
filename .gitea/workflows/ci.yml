@@ -54,7 +54,7 @@ jobs:
           --health-timeout=5s
           --health-retries=5
     env:
-      DATABASE_URL: postgresql://test_user:test_password@localhost:5432/sport_coaching_test
+      DATABASE_URL: postgresql://test_user:test_password@postgres:5432/sport_coaching_test
       NODE_ENV: test
 
     steps:
@@ -73,6 +73,31 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Wait for Postgres
+        run: |
+          node -e "
+          const net = require('net');
+          const tryConnect = () => new Promise((resolve) => {
+            const socket = net.connect(5432, 'postgres', () => {
+              socket.end();
+              resolve(true);
+            });
+            socket.on('error', () => resolve(false));
+          });
+          (async () => {
+            for (let i = 0; i < 30; i++) {
+              if (await tryConnect()) {
+                console.log('Postgres is ready');
+                process.exit(0);
+              }
+              console.log('Waiting for Postgres...');
+              await new Promise(r => setTimeout(r, 1000));
+            }
+            console.error('Postgres did not become ready in time');
+            process.exit(1);
+          })();
+          "
 
       - name: Run tests (includes migrations against the service container)
         run: npm test
