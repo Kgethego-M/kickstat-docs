@@ -99,5 +99,8 @@ jobs:
           })();
           "
 
+      - name: Run migrations
+        run: npx node-pg-migrate up --no-check-order
+
       - name: Run tests (includes migrations against the service container)
         run: npm test
