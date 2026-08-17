@@ -1,28 +1,22 @@
 const express = require('express')
 const crypto = require('crypto')
 const { Pool } = require('pg')
-const { getAuth } = require('../middleware/auth')
+const { requireAuth, getAuth } = require('../middleware/auth')
 
 const router = express.Router()
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 
-router.post('/', async (req, res) => {
+router.post('/', requireAuth(), async (req, res) => {
   try {
-    const { userId } = getAuth(req)
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Not authenticated' })
-    }
-
-    const clerkId = userId
-    console.log('DEBUG clerkId:', clerkId)
+    const { userId: clerkId } = getAuth(req)
     const { email } = req.body
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' })
     }
+
     const userResult = await pool.query(
-      'SELECT id, role, squad_id FROM users WHERE clerk_id = $1',
+      'SELECT id, role FROM users WHERE clerk_id = $1',
       [clerkId]
     )
 
@@ -36,24 +30,28 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: 'Only coaches can invite assistants' })
     }
 
-    if (!user.squad_id) {
+    const squadResult = await pool.query(
+      'SELECT id FROM squads WHERE coach_id = $1',
+      [user.id]
+    )
+
+    if (squadResult.rows.length === 0) {
       return res.status(400).json({ error: 'Coach has no squad' })
     }
 
-    // Generate a unique token
+    const squadId = squadResult.rows[0].id
     const token = crypto.randomBytes(24).toString('hex')
 
     const inviteResult = await pool.query(
-      `INSERT INTO invites (email, squad_id, invited_by, token)
-       VALUES ($1, $2, $3, $4) RETURNING id, token`,
-      [email, user.squad_id, user.id, token]
+      'INSERT INTO invites (email, squad_id, invited_by, token) VALUES ($1, $2, $3, $4) RETURNING id, token',
+      [email, squadId, user.id, token]
     )
 
     const invite = inviteResult.rows[0]
 
     res.status(201).json({
       inviteId: invite.id,
-      inviteLink: `${process.env.FRONTEND_URL}/invite/${invite.token}`,
+      inviteLink: process.env.FRONTEND_URL + '/invite/' + invite.token,
     })
   } catch (err) {
     console.error('Create invite error:', err.message)

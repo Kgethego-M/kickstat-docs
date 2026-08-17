@@ -57,69 +57,6 @@ function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleInvite = async (e) => {
-    e.preventDefault()
-    setSending(true)
-    setError(null)
-    setInviteLink(null)
-
-    try {
-      const token = await getToken()
-      const res = await fetch(API_URL + '/api/invites', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + token,
-        },
-        body: JSON.stringify({ email }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to create invite')
-      setInviteLink(data.inviteLink)
-      setEmail('')
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSending(false)
-    }
-  }
-
-  return (
-    <Layout>
-      <div className="dashboard-header">
-        <span className="dashboard-eyebrow">Overview</span>
-        <h1>Welcome back, {firstName}</h1>
-      </div>
-
-      {liveEvent && liveResult && (
-        <Link to={`/live/${liveEvent.id}`} className="dashboard-live-banner">
-          <span className="dashboard-live-badge">Live now</span>
-          <h2>
-            {liveEvent.event_type === 'match'
-              ? `vs ${liveEvent.opponent || 'Opponent'}`
-              : (liveEvent.title || 'Training session')}
-          </h2>
-          {liveEvent.event_type === 'match' && (
-            <div className="dashboard-live-score">
-              {liveResult.squad} - {liveResult.opponent}
-            </div>
-          )}
-          {liveFeed.length > 0 && (
-            <ul className="dashboard-live-feed">
-              {liveFeed.map((entry) => (
-                <li key={entry.id}>
-                  <span className="dashboard-live-feed-minute">
-                    {entry.minute != null ? `${entry.minute}'` : ''}
-                  </span>
-                  {entry.action_type.replace(/_/g, ' ')} — {entry.athlete_name || 'Opponent'}
-                </li>
-              ))}
-            </ul>
-          )}
-          <span className="dashboard-live-cta">Tap to open the live match view &rarr;</span>
-        </Link>
-      )}
-
       <div className="dashboard-grid">
         <Link to="/roster" className="dashboard-card">
           <h3>Roster</h3>

@@ -12,16 +12,14 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req, res
 
     if (evt.type === 'user.created') {
       const clerkId = evt.data.id;
-      const email = evt.data.email_addresses?.[0]?.email_address;
+      const email = evt.data.email_addresses && evt.data.email_addresses[0] && evt.data.email_addresses[0].email_address;
 
-      // Check for a pending invite matching this email
       const inviteResult = await pool.query(
-        `SELECT * FROM invites WHERE email = $1 AND status = 'pending' LIMIT 1`,
+        "SELECT * FROM invites WHERE email = $1 AND status = 'pending' LIMIT 1",
         [email]
       );
 
       if (inviteResult.rows.length > 0) {
-        // Invited assistant — link to the squad, mark invite accepted
         const invite = inviteResult.rows[0];
 
         await pool.query(
@@ -30,13 +28,12 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req, res
         );
 
         await pool.query(
-          `UPDATE invites SET status = 'accepted' WHERE id = $1`,
+          "UPDATE invites SET status = 'accepted' WHERE id = $1",
           [invite.id]
         );
 
         console.log('New assistant inserted:', clerkId, 'squad:', invite.squad_id);
       } else {
-        // No invite — new coach, create their own squad
         const userResult = await pool.query(
           'INSERT INTO users (clerk_id, role) VALUES ($1, $2) RETURNING id',
           [clerkId, 'coach']
@@ -44,8 +41,8 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req, res
         const userId = userResult.rows[0].id;
 
         const squadResult = await pool.query(
-          'INSERT INTO squads (coach_id) VALUES ($1) RETURNING id',
-          [userId]
+          'INSERT INTO squads (coach_id, name) VALUES ($1, $2) RETURNING id',
+          [userId, 'My Squad']
         );
         const squadId = squadResult.rows[0].id;
 

@@ -27,10 +27,23 @@ router.get('/mine', requireAuth(), async (req, res) => {
     );
 
     if (squadResult.rows.length === 0) {
-      squadResult = await pool.query(
-        'INSERT INTO squads (coach_id, name) VALUES ($1, $2) RETURNING *',
-        [userId, 'My Squad']
-      );
+      try {
+        squadResult = await pool.query(
+          'INSERT INTO squads (coach_id, name) VALUES ($1, $2) RETURNING *',
+          [userId, 'My Squad']
+        );
+      } catch (insertErr) {
+        // If a concurrent request already created the squad (unique constraint violation),
+        // fetch the existing one instead of failing
+        if (insertErr.code === '23505') {
+          squadResult = await pool.query(
+            'SELECT * FROM squads WHERE coach_id = $1',
+            [userId]
+          );
+        } else {
+          throw insertErr;
+        }
+      }
     }
 
     res.json(squadResult.rows[0]);

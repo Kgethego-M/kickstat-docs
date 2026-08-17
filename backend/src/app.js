@@ -11,7 +11,6 @@ const invitesRouter = require('./routes/invites');
 
 const app = express();
 
-// Webhook route MUST come before express.json() — needs raw body for signature verification
 app.use('/webhooks', webhooksRouter);
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:5174'],
@@ -24,7 +23,6 @@ app.use('/api/athletes', athletesRouter);
 app.use('/api/events', eventsRouter);
 app.use('/api/invites', invitesRouter);
 
-// Public route — health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
