@@ -17,5 +17,13 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Fetch-on-mount via useEffect is one of React's own documented uses of
+      // an effect (react.dev/learn/you-might-not-need-an-effect). This rule
+      // flags that pattern everywhere it's used across the app (Dashboard,
+      // Events, Roster, LiveMatch, AccountSettings, AthleteStats, EventDetail),
+      // so we disable it here rather than add a disable-comment on every page.
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])
