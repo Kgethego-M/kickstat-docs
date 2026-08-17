@@ -1,25 +1,32 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/clerk-react'
+import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
 import './Events.css'
 
 const emptyForm = {
-  type: 'training',
-  title: '',
+  opponent: '',
+  event_type: 'match',
   event_date: '',
-  event_time: '',
-  location: '',
+  duration_minutes: '90',
+}
+
+const statusLabel = {
+  scheduled: 'Scheduled',
+  live: 'Live',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
 }
 
 function Events() {
   const { getToken } = useAuth()
+  const navigate = useNavigate()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
-  const [editingId, setEditingId] = useState(null)
   const [saving, setSaving] = useState(false)
 
   const loadEvents = useCallback(async () => {
@@ -39,53 +46,39 @@ function Events() {
     loadEvents()
   }, [loadEvents])
 
-  function openAddForm() {
+  function openForm() {
     setForm(emptyForm)
-    setEditingId(null)
-    setFormOpen(true)
-  }
-
-  function openEditForm(event) {
-    setForm({
-      type: event.type,
-      title: event.title,
-      event_date: event.event_date ? event.event_date.slice(0, 10) : '',
-      event_time: event.event_time || '',
-      location: event.location || '',
-    })
-    setEditingId(event.id)
     setFormOpen(true)
   }
 
   function closeForm() {
     setFormOpen(false)
     setForm(emptyForm)
-    setEditingId(null)
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.title.trim() || !form.event_date || !form.event_time || !form.location.trim()) {
-      setError('All fields are required')
+    if (!form.event_date) {
+      setError('Event date is required')
       return
     }
+
     setSaving(true)
     setError('')
-    const payload = {
-      type: form.type,
-      title: form.title.trim(),
-      event_date: form.event_date,
-      event_time: form.event_time,
-      location: form.location.trim(),
-    }
+
     try {
-      if (editingId) {
-        await apiRequest(`/api/events/${editingId}`, { method: 'PATCH', body: payload, getToken })
-      } else {
-        await apiRequest('/api/events', { method: 'POST', body: payload, getToken })
-      }
+      const created = await apiRequest('/api/events', {
+        method: 'POST',
+        body: {
+          opponent: form.opponent.trim() || null,
+          event_type: form.event_type,
+          event_date: form.event_date,
+          duration_minutes: form.duration_minutes ? Number(form.duration_minutes) : 90,
+        },
+        getToken,
+      })
       closeForm()
-      await loadEvents()
+      navigate(`/events/${created.id}`)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -93,86 +86,97 @@ function Events() {
     }
   }
 
-  async function handleCancel(id) {
-    if (!window.confirm('Cancel this event? This cannot be undone.')) return
-    try {
-      await apiRequest(`/api/events/${id}/cancel`, { method: 'PATCH', getToken })
-      await loadEvents()
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
   return (
     <Layout>
-      <div className="events-header">
+      <div className="roster-header">
         <div>
-          <span className="dashboard-eyebrow">Squad</span>
+          <span className="dashboard-eyebrow">Matchday</span>
           <h1>Events</h1>
         </div>
-        <button className="btn btn-gold" onClick={openAddForm}>
-          New event
+        <button className="btn btn-gold" onClick={openForm}>
+          Schedule event
         </button>
       </div>
 
-      {error && <div className="events-error">{error}</div>}
+      {error && <div className="roster-error">{error}</div>}
 
       {formOpen && (
-        <form className="events-form" onSubmit={handleSubmit}>
-          <h3>{editingId ? 'Edit event' : 'New event'}</h3>
-          <div className="events-form-grid">
+        <form className="roster-form" onSubmit={handleSubmit}>
+          <h3>Schedule event</h3>
+          <div className="roster-form-grid">
+            <label>
+              Opponent
+              <input
+                type="text"
+                value={form.opponent}
+                onChange={(e) => setForm({ ...form, opponent: e.target.value })}
+                placeholder="e.g. Riverside FC"
+              />
+            </label>
             <label>
               Type
-              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+              <select
+                value={form.event_type}
+                onChange={(e) => setForm({ ...form, event_type: e.target.value })}
+              >
+                <option value="match">Match</option>
                 <option value="training">Training</option>
-                <option value="competition">Competition</option>
               </select>
             </label>
             <label>
-              Title
-              <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+              Date &amp; time
+              <input
+                type="datetime-local"
+                value={form.event_date}
+                onChange={(e) => setForm({ ...form, event_date: e.target.value })}
+                required
+              />
             </label>
             <label>
-              Date
-              <input type="date" value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} required />
-            </label>
-            <label>
-              Time
-              <input type="time" value={form.event_time} onChange={(e) => setForm({ ...form, event_time: e.target.value })} required />
-            </label>
-            <label className="events-form-wide">
-              Location
-              <input type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} required />
+              Duration (minutes)
+              <input
+                type="number"
+                min="1"
+                value={form.duration_minutes}
+                onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })}
+              />
             </label>
           </div>
-          <div className="events-form-actions">
-            <button type="button" className="btn btn-ghost" onClick={closeForm}>Cancel</button>
-            <button type="submit" className="btn btn-gold" disabled={saving}>{saving ? 'Saving...' : 'Save event'}</button>
+          <div className="roster-form-actions">
+            <button type="button" className="btn btn-ghost" onClick={closeForm}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-gold" disabled={saving}>
+              {saving ? 'Saving...' : 'Create event'}
+            </button>
           </div>
         </form>
       )}
 
       {loading ? (
-        <p className="events-status">Loading events...</p>
+        <p className="roster-status">Loading events...</p>
       ) : events.length === 0 ? (
-        <div className="events-empty"><p>No events yet. Create your first training or match.</p></div>
+        <div className="roster-empty">
+          <p>No events yet. Schedule your first match or training session.</p>
+        </div>
       ) : (
-        <div className="events-list">
+        <div className="events-grid">
           {events.map((event) => (
-            <div className={`event-card ${event.status === 'cancelled' ? 'event-card-cancelled' : ''}`} key={event.id}>
-              <div className="event-info">
-                <span className="event-type">{event.type}</span>
-                <h3>{event.title}</h3>
-                <p>{event.event_date?.slice(0, 10)} at {event.event_time} — {event.location}</p>
-                {event.status === 'cancelled' && <span className="event-cancelled-tag">Cancelled</span>}
-              </div>
-              {event.status !== 'cancelled' && (
-                <div className="event-actions">
-                  <button className="btn btn-ghost" onClick={() => openEditForm(event)}>Edit</button>
-                  <button className="btn btn-danger" onClick={() => handleCancel(event.id)}>Cancel</button>
-                </div>
-              )}
-            </div>
+            <button
+              key={event.id}
+              type="button"
+              className={`event-card event-card-${event.status}`}
+              onClick={() => navigate(event.status === 'live' ? `/live/${event.id}` : `/events/${event.id}`)}
+            >
+              <span className={`event-status event-status-${event.status}`}>
+                {statusLabel[event.status] || event.status}
+              </span>
+              <h3 className="event-card-title">{event.title || event.opponent || 'Training session'}</h3>
+              <span className="event-card-date">
+                {new Date(event.event_date).toLocaleString()}
+              </span>
+              {event.location && <span className="event-card-location">{event.location}</span>}
+            </button>
           ))}
         </div>
       )}

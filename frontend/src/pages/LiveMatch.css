@@ -54,6 +54,11 @@
 
 .live-section-heading {
   margin: 0 0 14px;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 15px;
+  color: var(--color-ink-soft);
 }
 
 .live-action-grid {
@@ -184,6 +189,16 @@
   flex-direction: column;
   flex: 1;
   gap: 2px;
+}
+
+.live-timeline-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.live-edit-form {
+  margin: 8px 0 0;
 }
 
 .live-timeline-action {

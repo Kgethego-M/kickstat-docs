@@ -5,24 +5,28 @@ import './Layout.css'
 function Layout({ children }) {
   const location = useLocation()
 
-  const navItem = (to, label) => (
-    <Link to={to} className={`nav-link ${location.pathname === to ? 'nav-link-active' : ''}`}>
-      {label}
-    </Link>
-  )
+  const navItem = (to, label) => {
+    const isActive = location.pathname === to || location.pathname.startsWith(`${to}/`)
+    return (
+      <Link to={to} className={`nav-link ${isActive ? 'nav-link-active' : ''}`}>
+        {label}
+      </Link>
+    )
+  }
 
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
         <div className="app-crest">
-          <span className="app-crest-mark">SC</span>
-          <span className="app-crest-name">Sport Coaching</span>
+          <span className="app-crest-mark">KS</span>
+          <span className="app-crest-name">KickStat</span>
         </div>
         <nav className="app-nav">
           {navItem('/dashboard', 'Dashboard')}
           {navItem('/roster', 'Roster')}
           {navItem('/events', 'Events')}
-          {navItem('/settings', 'Account')}
+          {navItem('/live', 'Live')}
+          {navItem('/settings', 'Settings')}
         </nav>
         <div className="app-sidebar-footer">
           <UserButton />

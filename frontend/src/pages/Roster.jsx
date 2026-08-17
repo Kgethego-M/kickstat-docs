@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/clerk-react'
+import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
 import './Roster.css'
@@ -198,13 +199,15 @@ function Roster() {
         <div className="roster-grid">
           {athletes.map((athlete) => (
             <div className="athlete-card" key={athlete.id}>
-              <div className="athlete-number">
-                {athlete.squad_number != null ? athlete.squad_number : '—'}
-              </div>
-              <div className="athlete-info">
-                <h3>{athlete.name}</h3>
-                {athlete.position && <span className="athlete-position">{athlete.position}</span>}
-              </div>
+              <Link to={`/roster/${athlete.id}`} className="athlete-card-main">
+                <div className="athlete-number">
+                  {athlete.squad_number != null ? athlete.squad_number : '—'}
+                </div>
+                <div className="athlete-info">
+                  <h3>{athlete.name}</h3>
+                  {athlete.position && <span className="athlete-position">{athlete.position}</span>}
+                </div>
+              </Link>
               <div className="athlete-actions">
                 <button className="btn btn-ghost" onClick={() => openEditForm(athlete)}>
                   Edit

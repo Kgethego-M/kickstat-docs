@@ -106,6 +106,17 @@
   border-color: var(--color-gold);
 }
 
+.athlete-card-main {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.athlete-card-main:hover {
+  text-decoration: none;
+}
+
 .athlete-number {
   font-family: var(--font-display);
   font-size: 42px;
