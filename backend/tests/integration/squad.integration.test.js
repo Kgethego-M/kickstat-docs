@@ -13,7 +13,8 @@ beforeAll(async () => {
   } catch (err) {
     throw new Error(
       'Could not reach the test database. Create it and run migrations against it first.\n' +
-        `Original error: ${err.message}`
+        `Original error: ${err.message}`,
+      { cause: err }
     )
   }
 })

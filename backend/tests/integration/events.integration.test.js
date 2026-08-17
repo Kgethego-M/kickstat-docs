@@ -1,4 +1,4 @@
-import { describe, test, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest'
+import { describe, test, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 import { pool, resetDatabase, seedCoach } from './setup'
@@ -20,7 +20,8 @@ beforeAll(async () => {
   } catch (err) {
     throw new Error(
       'Could not reach the test database. Create it and run migrations against it first — see the setup instructions.\n' +
-        `Original error: ${err.message}`
+        `Original error: ${err.message}`,
+      { cause: err }
     )
   }
 })
