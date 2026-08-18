@@ -53,29 +53,6 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-  
-  update-coverage-badge:
-    name: Update Coverage Badge
-    runs-on: ubuntu-latest
-    needs: backend-ci
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    defaults:
-      run:
-        working-directory: ./backend
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: sport_coaching_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U test_user"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
     env:
       DATABASE_URL: postgresql://test_user:test_password@postgres:5432/sport_coaching_test
       NODE_ENV: test
@@ -83,8 +60,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.PUSH_TOKEN }}
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -95,6 +70,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Wait for Postgres
         run: |
@@ -124,26 +102,5 @@ jobs:
       - name: Run migrations
         run: npx node-pg-migrate up --no-check-order
 
-      - name: Run tests with coverage
-        run: npm run test:coverage
-
-      - name: Update README badge
-        run: node scripts/update-readme-badge.js
-
-      - name: Commit and push if README changed
-        working-directory: .
-        run: |
-          git config user.name "gitea-actions-bot"
-          git config user.email "actions@noreply.local"
-          if git diff --quiet README.md; then
-            echo "No coverage change"
-            exit 0
-          fi
-          git add README.md
-          git commit -m "chore: update coverage badge [skip ci]"
-          git push origin HEAD:main
-
-    
- 
-    
-    
+      - name: Run tests (includes migrations against the service container)
+        run: npm test
