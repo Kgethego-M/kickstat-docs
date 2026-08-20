@@ -73,6 +73,14 @@ function App() {
         }
       />
       <Route
+        path="/live/fixture/:fixtureId"
+        element={
+          <ProtectedRoute>
+            <LiveMatch />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/settings"
         element={
           <ProtectedRoute>

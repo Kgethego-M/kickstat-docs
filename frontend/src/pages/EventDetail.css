@@ -110,3 +110,123 @@
   gap: 8px;
   flex-shrink: 0;
 }
+
+/* League / tournament sections */
+
+.league-section {
+  margin-top: 28px;
+}
+
+.league-section h3 {
+  margin-bottom: 14px;
+}
+
+.league-subheading {
+  margin-top: 20px;
+}
+
+.league-teams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.league-team {
+  padding: 8px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-pitch);
+  font-size: 14px;
+}
+
+.league-team-mine {
+  border-color: var(--color-gold);
+  background: var(--color-chalk);
+  font-weight: 600;
+}
+
+.league-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-pitch);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.league-table th,
+.league-table td {
+  padding: 12px 14px;
+  text-align: center;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.league-table th:first-child,
+.league-table td:first-child {
+  text-align: left;
+}
+
+.league-table th {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  background: var(--color-chalk);
+}
+
+.league-points {
+  font-weight: 700;
+  color: var(--color-gold);
+}
+
+.league-fixtures {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.league-fixture {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-pitch);
+}
+
+.league-fixture-teams {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+
+.league-fixture-vs {
+  color: var(--color-ink-soft);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.league-fixture-mine {
+  color: var(--color-gold);
+  font-weight: 600;
+}
+
+.league-stats-list {
+  padding-left: 20px;
+  margin: 0;
+}
+
+.league-stats-list li {
+  padding: 6px 0;
+}
+
+.league-stats-meta {
+  color: var(--color-ink-soft);
+  font-size: 13px;
+}

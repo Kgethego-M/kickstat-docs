@@ -1,19 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@clerk/clerk-react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
+import { ACTION_TYPES, formatActionType } from '../lib/actions'
 import './EventDetail.css'
-
-const ACTION_TYPES = [
-  { value: 'goal', label: 'Goal', scoring: true },
-  { value: 'point', label: 'Point', scoring: true },
-  { value: 'penalty', label: 'Penalty', scoring: false },
-  { value: 'yellow_card', label: 'Yellow card', scoring: false },
-  { value: 'red_card', label: 'Red card', scoring: false },
-  { value: 'substitution', label: 'Substitution', scoring: false },
-  { value: 'other', label: 'Other', scoring: false },
-]
 
 const emptyLogForm = {
   for: '', // athlete id as a string, or 'opponent'
@@ -23,60 +14,23 @@ const emptyLogForm = {
   notes: '',
 }
 
-function formatActionType(type) {
-  return type.replace(/_/g, ' ')
+const statusLabel = {
+  scheduled: 'Scheduled',
+  live: 'Live',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  open: 'Open',
+  full: 'Full',
 }
 
-function EventDetail() {
-  const { id } = useParams()
-  const { getToken } = useAuth()
-
-  const [detail, setDetail] = useState(null)
-  const [athletes, setAthletes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [statusSaving, setStatusSaving] = useState(false)
-
+function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
+  const { event, result, timeline } = detail
   const [logForm, setLogForm] = useState(emptyLogForm)
   const [editingLogId, setEditingLogId] = useState(null)
   const [logSaving, setLogSaving] = useState(false)
   const [logError, setLogError] = useState('')
-
-  const pollRef = useRef(null)
-
-  const loadDetail = useCallback(async () => {
-    try {
-      const data = await apiRequest(`/api/events/${id}`, { getToken })
-      setDetail(data)
-      setError('')
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [id, getToken])
-
-  const loadAthletes = useCallback(async () => {
-    try {
-      const data = await apiRequest('/api/athletes', { getToken })
-      setAthletes(data)
-    } catch {
-      // roster load failing isn't fatal to viewing the event
-    }
-  }, [getToken])
-
-  useEffect(() => {
-    loadDetail()
-    loadAthletes()
-  }, [loadDetail, loadAthletes])
-
-  // Poll while the event is live — keeps the dashboard/timeline near-real-time (US16)
-  useEffect(() => {
-    if (detail?.event?.status === 'live') {
-      pollRef.current = setInterval(loadDetail, 5000)
-      return () => clearInterval(pollRef.current)
-    }
-  }, [detail?.event?.status, loadDetail])
+  const [error, setError] = useState('')
+  const [statusSaving, setStatusSaving] = useState(false)
 
   async function handleStatusChange(status) {
     setStatusSaving(true)
@@ -87,7 +41,7 @@ function EventDetail() {
         body: { status },
         getToken,
       })
-      await loadDetail()
+      onChange()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -150,7 +104,7 @@ function EventDetail() {
         })
       }
       resetLogForm()
-      await loadDetail()
+      onChange()
     } catch (err) {
       setLogError(err.message)
     } finally {
@@ -162,32 +116,14 @@ function EventDetail() {
     if (!window.confirm('Undo this log entry?')) return
     try {
       await apiRequest(`/api/events/${id}/logs/${logId}`, { method: 'DELETE', getToken })
-      await loadDetail()
+      onChange()
     } catch (err) {
       setError(err.message)
     }
   }
 
-  if (loading) {
-    return (
-      <Layout>
-        <p className="roster-status">Loading event...</p>
-      </Layout>
-    )
-  }
-
-  if (!detail) {
-    return (
-      <Layout>
-        {error && <div className="roster-error">{error}</div>}
-      </Layout>
-    )
-  }
-
-  const { event, result, timeline } = detail
-
   return (
-    <Layout>
+    <>
       <div className="roster-header">
         <div>
           <span className="dashboard-eyebrow">
@@ -311,6 +247,237 @@ function EventDetail() {
             </div>
           ))}
         </div>
+      )}
+    </>
+  )
+}
+
+function LeagueDetail({ detail, id, getToken, onChange }) {
+  const navigate = useNavigate()
+  const { event, teams, fixtures, standings, stats } = detail
+  const [joining, setJoining] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleJoin() {
+    setJoining(true)
+    setError('')
+    try {
+      await apiRequest(`/api/events/${id}/join`, { method: 'POST', getToken })
+      onChange()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setJoining(false)
+    }
+  }
+
+  const isOpen = event.status === 'open'
+  const mySquadJoined = teams.some((t) => t.is_mine)
+
+  return (
+    <>
+      <div className="roster-header">
+        <div>
+          <span className="dashboard-eyebrow">
+            {event.format === 'league' ? 'League' : 'Tournament'} · {statusLabel[event.status] || event.status}
+          </span>
+          <h1>{event.title || 'Untitled league'}</h1>
+          <p className="event-detail-date">
+            {teams.length} / {event.required_teams} teams joined
+          </p>
+        </div>
+        {isOpen && !mySquadJoined && (
+          <button className="btn btn-gold" disabled={joining} onClick={handleJoin}>
+            {joining ? 'Joining...' : 'Join league'}
+          </button>
+        )}
+      </div>
+
+      {error && <div className="roster-error">{error}</div>}
+
+      <section className="league-section">
+        <h3>Teams</h3>
+        <div className="league-teams">
+          {teams.map((team) => (
+            <span key={team.squad_id} className={`league-team ${team.is_mine ? 'league-team-mine' : ''}`}>
+              {team.squad_name}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      {standings.length > 0 && (
+        <section className="league-section">
+          <h3>Standings</h3>
+          <table className="league-table">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>P</th>
+                <th>W</th>
+                <th>D</th>
+                <th>L</th>
+                <th>GF</th>
+                <th>GA</th>
+                <th>GD</th>
+                <th>Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {standings.map((row) => (
+                <tr key={row.squadId}>
+                  <td>{row.squadName}</td>
+                  <td>{row.played}</td>
+                  <td>{row.wins}</td>
+                  <td>{row.draws}</td>
+                  <td>{row.losses}</td>
+                  <td>{row.gf}</td>
+                  <td>{row.ga}</td>
+                  <td>{row.gd}</td>
+                  <td className="league-points">{row.points}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {fixtures.length > 0 && (
+        <section className="league-section">
+          <h3>Fixtures</h3>
+          <div className="league-fixtures">
+            {fixtures.map((fixture) => (
+              <div key={fixture.id} className={`league-fixture league-fixture-${fixture.status}`}>
+                <div className="league-fixture-teams">
+                  <span className={fixture.is_home_mine ? 'league-fixture-mine' : ''}>
+                    {fixture.home_squad_name}
+                  </span>
+                  <span className="league-fixture-vs">vs</span>
+                  <span className={fixture.is_away_mine ? 'league-fixture-mine' : ''}>
+                    {fixture.away_squad_name}
+                  </span>
+                </div>
+                <span className={`event-status event-status-${fixture.status}`}>
+                  {statusLabel[fixture.status] || fixture.status}
+                </span>
+                {fixture.status === 'scheduled' && fixture.is_home_mine && (
+                  <button className="btn btn-gold" onClick={() => navigate(`/live/fixture/${fixture.id}`)}>
+                    Start live
+                  </button>
+                )}
+                {fixture.status === 'live' && (
+                  <button className="btn btn-gold" onClick={() => navigate(`/live/fixture/${fixture.id}`)}>
+                    Go live
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {stats && (
+        <section className="league-section">
+          <h3>Top Scorers</h3>
+          {stats.topScorers.length === 0 ? (
+            <p className="roster-status">No goals recorded yet.</p>
+          ) : (
+            <ol className="league-stats-list">
+              {stats.topScorers.map((s) => (
+                <li key={s.athleteId}>
+                  {s.athleteName} <span className="league-stats-meta">({s.squadName})</span> — {s.goals} goal{s.goals === 1 ? '' : 's'}
+                </li>
+              ))}
+            </ol>
+          )}
+
+          <h3 className="league-subheading">Top Assisters</h3>
+          {stats.topAssisters.length === 0 ? (
+            <p className="roster-status">No assists recorded yet.</p>
+          ) : (
+            <ol className="league-stats-list">
+              {stats.topAssisters.map((s) => (
+                <li key={s.athleteId}>
+                  {s.athleteName} <span className="league-stats-meta">({s.squadName})</span> — {s.assists} assist{s.assists === 1 ? '' : 's'}
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      )}
+    </>
+  )
+}
+
+function EventDetail() {
+  const { id } = useParams()
+  const { getToken } = useAuth()
+
+  const [detail, setDetail] = useState(null)
+  const [athletes, setAthletes] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const pollRef = useRef(null)
+
+  const loadDetail = useCallback(async () => {
+    try {
+      const data = await apiRequest(`/api/events/${id}`, { getToken })
+      setDetail(data)
+      setError('')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [id, getToken])
+
+  const loadAthletes = useCallback(async () => {
+    try {
+      const data = await apiRequest('/api/athletes', { getToken })
+      setAthletes(data)
+    } catch {
+      // roster load failing isn't fatal to viewing the event
+    }
+  }, [getToken])
+
+  useEffect(() => {
+    loadDetail()
+    loadAthletes()
+  }, [loadDetail, loadAthletes])
+
+  // Poll while a simple event is live so the dashboard/timeline stays near-real-time.
+  useEffect(() => {
+    if (detail?.event?.status === 'live' && detail?.event?.format === 'match') {
+      pollRef.current = setInterval(loadDetail, 5000)
+      return () => clearInterval(pollRef.current)
+    }
+  }, [detail?.event?.status, detail?.event?.format, loadDetail])
+
+  if (loading) {
+    return (
+      <Layout>
+        <p className="roster-status">Loading event...</p>
+      </Layout>
+    )
+  }
+
+  if (!detail) {
+    return (
+      <Layout>
+        {error && <div className="roster-error">{error}</div>}
+      </Layout>
+    )
+  }
+
+  const isLeague = detail.event.format === 'league' || detail.event.format === 'tournament'
+
+  return (
+    <Layout>
+      {isLeague ? (
+        <LeagueDetail detail={detail} id={id} getToken={getToken} onChange={loadDetail} />
+      ) : (
+        <SimpleEventDetail detail={detail} athletes={athletes} id={id} getToken={getToken} onChange={loadDetail} />
       )}
     </Layout>
   )

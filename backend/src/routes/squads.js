@@ -1,6 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { requireAuth, getAuth } = require('../middleware/auth');
+const { getOwnedSquadId } = require('./_squad');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -9,46 +10,39 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 router.get('/mine', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
 
-    const userResult = await pool.query(
-      'SELECT id FROM users WHERE clerk_id = $1',
-      [clerkUserId]
-    );
-
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const userId = userResult.rows[0].id;
-
-    let squadResult = await pool.query(
-      'SELECT * FROM squads WHERE coach_id = $1',
-      [userId]
-    );
-
+    const squadResult = await pool.query('SELECT * FROM squads WHERE id = $1', [squadId]);
     if (squadResult.rows.length === 0) {
-      try {
-        squadResult = await pool.query(
-          'INSERT INTO squads (coach_id, name) VALUES ($1, $2) RETURNING *',
-          [userId, 'My Squad']
-        );
-      } catch (insertErr) {
-        // If a concurrent request already created the squad (unique constraint violation),
-        // fetch the existing one instead of failing
-        if (insertErr.code === '23505') {
-          squadResult = await pool.query(
-            'SELECT * FROM squads WHERE coach_id = $1',
-            [userId]
-          );
-        } else {
-          throw insertErr;
-        }
-      }
+      return res.status(404).json({ error: 'Squad not found' });
     }
 
     res.json(squadResult.rows[0]);
   } catch (err) {
     console.error('Error fetching/creating squad:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update the logged-in coach's squad name
+router.patch('/mine', requireAuth(), async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const result = await pool.query(
+      'UPDATE squads SET name = $1, updated_at = now() WHERE id = $2 RETURNING *',
+      [name.trim(), squadId]
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating squad:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });

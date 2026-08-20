@@ -1,7 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { requireAuth, getAuth } = require('../middleware/auth');
-const { getOwnedSquadId } = require('./_squad');
+const { getOwnedSquadId, getOwnedSquadIdForCoach } = require('./_squad');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -33,7 +33,7 @@ router.post('/', requireAuth(), async (req, res) => {
     }
 
     const { userId: clerkUserId } = getAuth(req);
-    const squadId = await getOwnedSquadId(pool, clerkUserId);
+    const squadId = await getOwnedSquadIdForCoach(pool, clerkUserId);
 
     const result = await pool.query(
       `INSERT INTO athletes (squad_id, name, position, squad_number, date_of_birth, contact_info)
@@ -43,8 +43,10 @@ router.post('/', requireAuth(), async (req, res) => {
 
 res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error('Error creating log entry:', err);
-    res.status(500).json({ error: 'Server error', detail: err.message });
+    console.error('Error creating athlete:', err);
+    const status = err.status || 500;
+    const message = status === 403 ? err.message : 'Server error';
+    res.status(status).json({ error: message });
   }
 });
 
@@ -78,6 +80,9 @@ router.get('/:id/stats', requireAuth(), async (req, res) => {
     const goals = logs
       .filter((l) => l.action_type === 'goal')
       .reduce((sum, l) => sum + l.value, 0);
+    const assists = logs
+      .filter((l) => l.action_type === 'assist')
+      .reduce((sum, l) => sum + l.value, 0);
     const penalties = logs.filter((l) => l.action_type.includes('penalty')).length;
     const yellowCards = logs.filter((l) => l.action_type === 'yellow_card').length;
     const redCards = logs.filter((l) => l.action_type === 'red_card').length;
@@ -85,7 +90,7 @@ router.get('/:id/stats', requireAuth(), async (req, res) => {
 
     res.json({
       athlete: athleteResult.rows[0],
-      stats: { goals, penalties, yellowCards, redCards, appearances },
+      stats: { goals, assists, penalties, yellowCards, redCards, appearances },
       logs,
     });
   } catch (err) {
@@ -98,7 +103,7 @@ router.get('/:id/stats', requireAuth(), async (req, res) => {
 router.patch('/:id', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
-    const squadId = await getOwnedSquadId(pool, clerkUserId);
+    const squadId = await getOwnedSquadIdForCoach(pool, clerkUserId);
 
     const athleteCheck = await pool.query(
       'SELECT id FROM athletes WHERE id = $1 AND squad_id = $2',
@@ -125,7 +130,9 @@ router.patch('/:id', requireAuth(), async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating athlete:', err.message);
-    res.status(500).json({ error: 'Server error' });
+    const status = err.status || 500;
+    const message = status === 403 ? err.message : 'Server error';
+    res.status(status).json({ error: message });
   }
 });
 
@@ -133,7 +140,7 @@ router.patch('/:id', requireAuth(), async (req, res) => {
 router.delete('/:id', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
-    const squadId = await getOwnedSquadId(pool, clerkUserId);
+    const squadId = await getOwnedSquadIdForCoach(pool, clerkUserId);
 
     const result = await pool.query(
       'DELETE FROM athletes WHERE id = $1 AND squad_id = $2 RETURNING id',
@@ -147,7 +154,9 @@ router.delete('/:id', requireAuth(), async (req, res) => {
     res.sendStatus(204);
   } catch (err) {
     console.error('Error deleting athlete:', err.message);
-    res.status(500).json({ error: 'Server error' });
+    const status = err.status || 500;
+    const message = status === 403 ? err.message : 'Server error';
+    res.status(status).json({ error: message });
   }
 });
 
