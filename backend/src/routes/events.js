@@ -222,7 +222,9 @@ router.get('/', requireAuth(), async (req, res) => {
               (SELECT COUNT(*) FROM event_teams et WHERE et.event_id = e.id) AS team_count
        FROM events e
        LEFT JOIN event_teams et ON et.event_id = e.id AND et.squad_id = $1
-       WHERE e.squad_id = $1 OR et.squad_id IS NOT NULL
+       WHERE e.squad_id = $1
+          OR et.squad_id IS NOT NULL
+          OR (e.status = 'open' AND e.format IN ('league', 'tournament'))
        ORDER BY e.event_date DESC`,
       [squadId]
     );

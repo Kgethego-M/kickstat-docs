@@ -36,7 +36,7 @@ router.patch('/mine', requireAuth(), async (req, res) => {
     const squadId = await getOwnedSquadId(pool, clerkUserId);
 
     const result = await pool.query(
-      'UPDATE squads SET name = $1, updated_at = now() WHERE id = $2 RETURNING *',
+      'UPDATE squads SET name = $1 WHERE id = $2 RETURNING *',
       [name.trim(), squadId]
     );
 
