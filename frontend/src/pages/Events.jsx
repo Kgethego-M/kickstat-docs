@@ -5,6 +5,26 @@ import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
 import './Events.css'
 
+const LEAGUES = [
+  { code: 'PL',  name: 'Premier League' },
+  { code: 'PD',  name: 'La Liga' },
+  { code: 'BL1', name: 'Bundesliga' },
+  { code: 'SA',  name: 'Serie A' },
+  { code: 'FL1', name: 'Ligue 1' },
+  { code: 'CL',  name: 'Champions League' },
+]
+
+const proStatusLabel = {
+  SCHEDULED: 'Upcoming',
+  TIMED: 'Upcoming',
+  IN_PLAY: 'Live',
+  PAUSED: 'HT',
+  FINISHED: 'FT',
+  POSTPONED: 'Postponed',
+  SUSPENDED: 'Suspended',
+  CANCELLED: 'Cancelled',
+}
+
 const emptyForm = {
   title: '',
   opponent: '',
@@ -34,12 +54,22 @@ const formatLabel = {
 function Events() {
   const { getToken } = useAuth()
   const navigate = useNavigate()
+
+  // --- My Events state ---
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+
+  // --- Pro Fixtures state ---
+  const [activeTab, setActiveTab] = useState('mine')  // 'mine' | 'pro'
+  const [league, setLeague] = useState('PL')
+  const [proFixtures, setProFixtures] = useState([])
+  const [proStandings, setProStandings] = useState([])
+  const [proLoading, setProLoading] = useState(false)
+  const [proError, setProError] = useState('')
 
   const loadEvents = useCallback(async () => {
     setLoading(true)
@@ -124,6 +154,43 @@ function Events() {
 
   const isLeagueForm = form.format === 'league' || form.format === 'tournament'
 
+  const loadProData = useCallback(async (leagueCode) => {
+    setProLoading(true)
+    setProError('')
+    setProFixtures([])
+    setProStandings([])
+    try {
+      const [fixtures, standings] = await Promise.all([
+        apiRequest(`/api/external/fixtures?league=${leagueCode}`, { getToken }),
+        apiRequest(`/api/external/standings?league=${leagueCode}`, { getToken }),
+      ])
+      setProFixtures(fixtures)
+      setProStandings(standings)
+    } catch (err) {
+      setProError(err.message)
+    } finally {
+      setProLoading(false)
+    }
+  }, [getToken])
+
+  useEffect(() => {
+    if (activeTab === 'pro') {
+      loadProData(league)
+    }
+  }, [activeTab, league, loadProData])
+
+  function handleLeagueChange(e) {
+    setLeague(e.target.value)
+  }
+
+  function formatKickoff(iso) {
+    if (!iso) return ''
+    return new Date(iso).toLocaleString(undefined, {
+      weekday: 'short', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  }
+
   return (
     <Layout>
       <div className="roster-header">
@@ -131,14 +198,34 @@ function Events() {
           <span className="dashboard-eyebrow">Matchday</span>
           <h1>Events</h1>
         </div>
-        <button className="btn btn-gold" onClick={openForm}>
-          Schedule event
+        {activeTab === 'mine' && (
+          <button className="btn btn-gold" onClick={openForm}>
+            Schedule event
+          </button>
+        )}
+      </div>
+
+      {/* Tab bar */}
+      <div className="events-tabs">
+        <button
+          type="button"
+          className={`events-tab${activeTab === 'mine' ? ' events-tab-active' : ''}`}
+          onClick={() => setActiveTab('mine')}
+        >
+          My Events
+        </button>
+        <button
+          type="button"
+          className={`events-tab${activeTab === 'pro' ? ' events-tab-active' : ''}`}
+          onClick={() => setActiveTab('pro')}
+        >
+          Pro Fixtures
         </button>
       </div>
 
-      {error && <div className="roster-error">{error}</div>}
+      {activeTab === 'mine' && error && <div className="roster-error">{error}</div>}
 
-      {formOpen && (
+      {activeTab === 'mine' && formOpen && (
         <form className="roster-form" onSubmit={handleSubmit}>
           <h3>Schedule event</h3>
           <div className="roster-form-grid">
@@ -228,44 +315,152 @@ function Events() {
         </form>
       )}
 
-      {loading ? (
-        <p className="roster-status">Loading events...</p>
-      ) : events.length === 0 ? (
-        <div className="roster-empty">
-          <p>No events yet. Schedule your first match or training session.</p>
-        </div>
-      ) : (
-        <div className="events-grid">
-          {events.map((event) => (
-            <div key={event.id} className={`event-card event-card-${event.status}`}>
-              <button
-                type="button"
-                className="event-card-main"
-                onClick={() => navigateToEvent(event)}
-              >
-                <span className={`event-status event-status-${event.status}`}>
-                  {statusLabel[event.status] || event.status}
-                </span>
-                <span className="event-card-format">{formatLabel[event.format] || event.format}</span>
-                <h3 className="event-card-title">{event.title || event.opponent || 'Training session'}</h3>
-                <span className="event-card-date">
-                  {event.format === 'league' || event.format === 'tournament'
-                    ? `${event.team_count || 0} / ${event.required_teams || '?'} teams joined`
-                    : new Date(event.event_date).toLocaleString()}
-                </span>
-                {event.location && <span className="event-card-location">{event.location}</span>}
-              </button>
-              {event.status === 'open' && event.team_count < event.required_teams && (
+      {/* My Events tab */}
+      {activeTab === 'mine' && (
+        loading ? (
+          <p className="roster-status">Loading events...</p>
+        ) : events.length === 0 ? (
+          <div className="roster-empty">
+            <p>No events yet. Schedule your first match or training session.</p>
+          </div>
+        ) : (
+          <div className="events-grid">
+            {events.map((event) => (
+              <div key={event.id} className={`event-card event-card-${event.status}`}>
                 <button
                   type="button"
-                  className="btn btn-gold btn-join"
-                  onClick={() => handleJoin(event.id)}
+                  className="event-card-main"
+                  onClick={() => navigateToEvent(event)}
                 >
-                  Join
+                  <span className={`event-status event-status-${event.status}`}>
+                    {statusLabel[event.status] || event.status}
+                  </span>
+                  <span className="event-card-format">{formatLabel[event.format] || event.format}</span>
+                  <h3 className="event-card-title">{event.title || event.opponent || 'Training session'}</h3>
+                  <span className="event-card-date">
+                    {event.format === 'league' || event.format === 'tournament'
+                      ? `${event.team_count || 0} / ${event.required_teams || '?'} teams joined`
+                      : new Date(event.event_date).toLocaleString()}
+                  </span>
+                  {event.location && <span className="event-card-location">{event.location}</span>}
                 </button>
+                {event.status === 'open' && event.team_count < event.required_teams && (
+                  <button
+                    type="button"
+                    className="btn btn-gold btn-join"
+                    onClick={() => handleJoin(event.id)}
+                  >
+                    Join
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {/* Pro Fixtures tab */}
+      {activeTab === 'pro' && (
+        <div className="pro-fixtures-container">
+          <div className="pro-fixtures-header">
+            <select
+              className="pro-league-select"
+              value={league}
+              onChange={handleLeagueChange}
+            >
+              {LEAGUES.map((l) => (
+                <option key={l.code} value={l.code}>{l.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {proError && <div className="roster-error">{proError}</div>}
+
+          {proLoading ? (
+            <p className="roster-status">Loading fixtures...</p>
+          ) : (
+            <>
+              {/* Standings table — hidden for CL which has no simple table */}
+              {proStandings.length > 0 && (
+                <div className="pro-standings-wrap">
+                  <h3 className="pro-section-title">Standings</h3>
+                  <div className="pro-standings-scroll">
+                    <table className="pro-standings-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Team</th>
+                          <th>P</th>
+                          <th>W</th>
+                          <th>D</th>
+                          <th>L</th>
+                          <th>GD</th>
+                          <th>Pts</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {proStandings.map((row) => (
+                          <tr key={row.position}>
+                            <td>{row.position}</td>
+                            <td className="pro-standings-team">
+                              {row.crest && (
+                                <img
+                                  src={row.crest}
+                                  alt=""
+                                  className="pro-crest"
+                                />
+                              )}
+                              {row.team}
+                            </td>
+                            <td>{row.played}</td>
+                            <td>{row.won}</td>
+                            <td>{row.drawn}</td>
+                            <td>{row.lost}</td>
+                            <td>{row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}</td>
+                            <td className="pro-standings-pts">{row.points}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
-            </div>
-          ))}
+
+              {/* Fixtures list */}
+              <div className="pro-fixtures-list">
+                <h3 className="pro-section-title">Fixtures &amp; Results</h3>
+                {proFixtures.length === 0 ? (
+                  <p className="roster-status">No fixtures available.</p>
+                ) : (
+                  proFixtures.map((m) => {
+                    const isFinished = m.status === 'FINISHED'
+                    const isLive = m.status === 'IN_PLAY' || m.status === 'PAUSED'
+                    const statusKey = m.status
+                    return (
+                      <div key={m.id} className={`pro-fixture-row${isLive ? ' pro-fixture-live' : ''}`}>
+                        <span className="pro-fixture-home">{m.homeTeam}</span>
+                        <span className="pro-fixture-score">
+                          {isFinished || isLive
+                            ? `${m.score.home ?? 0} – ${m.score.away ?? 0}`
+                            : 'vs'}
+                        </span>
+                        <span className="pro-fixture-away">{m.awayTeam}</span>
+                        <span className={`pro-fixture-status pro-fixture-status-${statusKey}`}>
+                          {proStatusLabel[statusKey] || statusKey}
+                        </span>
+                        {!isFinished && !isLive && (
+                          <span className="pro-fixture-time">{formatKickoff(m.kickoff)}</span>
+                        )}
+                        {m.matchday && (
+                          <span className="pro-fixture-matchday">MD {m.matchday}</span>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
     </Layout>

@@ -9,6 +9,7 @@ const athletesRouter = require('./routes/athletes');
 const eventsRouter = require('./routes/events');
 const fixturesRouter = require('./routes/fixtures');
 const invitesRouter = require('./routes/invites');
+const externalRouter = require('./routes/external');
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use('/api/athletes', athletesRouter);
 app.use('/api/events', eventsRouter);
 app.use('/api/fixtures', fixturesRouter);
 app.use('/api/invites', invitesRouter);
+app.use('/api/external', externalRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
