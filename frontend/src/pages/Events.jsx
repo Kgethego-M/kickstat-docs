@@ -2,7 +2,23 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
+import { Calendar, dateFnsLocalizer } from 'react-big-calendar'
+import format from 'date-fns/format'
+import parse from 'date-fns/parse'
+import startOfWeek from 'date-fns/startOfWeek'
+import getDay from 'date-fns/getDay'
+import enUS from 'date-fns/locale/en-US'
+import 'react-big-calendar/lib/css/react-big-calendar.css'
 import './Events.css'
+
+const locales = { 'en-US': enUS }
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  locales,
+})
 
 const emptyForm = {
   type: 'training',
@@ -103,6 +119,21 @@ function Events() {
     }
   }
 
+  // Convert events into the shape react-big-calendar expects
+  const calendarEvents = events
+    .filter((e) => e.status !== 'cancelled')
+    .map((e) => {
+      const start = new Date(`${e.event_date?.slice(0, 10)}T${e.event_time}`)
+      const end = new Date(start.getTime() + 60 * 60 * 1000) // default 1hr block
+      return {
+        id: e.id,
+        title: `${e.type === 'competition' ? '🏆' : '🏃'} ${e.title}`,
+        start,
+        end,
+        resource: e,
+      }
+    })
+
   return (
     <Layout>
       <div className="events-header">
@@ -157,24 +188,37 @@ function Events() {
       ) : events.length === 0 ? (
         <div className="events-empty"><p>No events yet. Create your first training or match.</p></div>
       ) : (
-        <div className="events-list">
-          {events.map((event) => (
-            <div className={`event-card ${event.status === 'cancelled' ? 'event-card-cancelled' : ''}`} key={event.id}>
-              <div className="event-info">
-                <span className="event-type">{event.type}</span>
-                <h3>{event.title}</h3>
-                <p>{event.event_date?.slice(0, 10)} at {event.event_time} — {event.location}</p>
-                {event.status === 'cancelled' && <span className="event-cancelled-tag">Cancelled</span>}
-              </div>
-              {event.status !== 'cancelled' && (
-                <div className="event-actions">
-                  <button className="btn btn-ghost" onClick={() => openEditForm(event)}>Edit</button>
-                  <button className="btn btn-danger" onClick={() => handleCancel(event.id)}>Cancel</button>
+        <>
+          <div className="events-calendar">
+            <Calendar
+              localizer={localizer}
+              events={calendarEvents}
+              startAccessor="start"
+              endAccessor="end"
+              style={{ height: 500 }}
+              onSelectEvent={(calEvent) => openEditForm(calEvent.resource)}
+            />
+          </div>
+
+          <div className="events-list">
+            {events.map((event) => (
+              <div className={`event-card ${event.status === 'cancelled' ? 'event-card-cancelled' : ''}`} key={event.id}>
+                <div className="event-info">
+                  <span className="event-type">{event.type}</span>
+                  <h3>{event.title}</h3>
+                  <p>{event.event_date?.slice(0, 10)} at {event.event_time} — {event.location}</p>
+                  {event.status === 'cancelled' && <span className="event-cancelled-tag">Cancelled</span>}
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
+                {event.status !== 'cancelled' && (
+                  <div className="event-actions">
+                    <button className="btn btn-ghost" onClick={() => openEditForm(event)}>Edit</button>
+                    <button className="btn btn-danger" onClick={() => handleCancel(event.id)}>Cancel</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </Layout>
   )
