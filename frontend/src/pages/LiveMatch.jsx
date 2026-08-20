@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@clerk/clerk-react'
-import { useParams, Link, Navigate } from 'react-router-dom'
+import { useParams, Link, Navigate, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
 import { ACTION_TYPES, QUICK_ACTIONS, formatActionType } from '../lib/actions'
@@ -104,6 +104,8 @@ function LiveMatch() {
   const [editingEntryId, setEditingEntryId] = useState(null)
   const [editForm, setEditForm] = useState(null)
   const [editSaving, setEditSaving] = useState(false)
+  const [endingFixture, setEndingFixture] = useState(false)
+  const navigate = useNavigate()
 
   async function handleLog(athleteIdOrOpponent) {
     if (!pendingAction) return
@@ -183,6 +185,24 @@ function LiveMatch() {
     }
   }
 
+  async function handleEndFixture() {
+    if (!window.confirm('End this fixture? No more actions can be logged.')) return
+    setEndingFixture(true)
+    setError('')
+    try {
+      await apiRequest(`${apiPrefix}/${entityId}`, {
+        method: 'PATCH',
+        body: { status: 'completed' },
+        getToken,
+      })
+      navigate(summaryPath)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setEndingFixture(false)
+    }
+  }
+
   if (loading) {
     return (
       <Layout>
@@ -229,7 +249,19 @@ function LiveMatch() {
                 : (event.title || 'Training session'))}
           </h1>
         </div>
-        <Link to={summaryPath} className="btn btn-ghost">Summary</Link>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {isFixture && event.status === 'live' && canLog && (
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={endingFixture}
+              onClick={handleEndFixture}
+            >
+              {endingFixture ? 'Ending...' : 'End fixture'}
+            </button>
+          )}
+          <Link to={summaryPath} className="btn btn-ghost">Summary</Link>
+        </div>
       </div>
 
       {error && <div className="roster-error">{error}</div>}

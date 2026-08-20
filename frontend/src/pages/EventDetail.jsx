@@ -256,6 +256,7 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
   const navigate = useNavigate()
   const { event, teams, fixtures, standings, stats } = detail
   const [joining, setJoining] = useState(false)
+  const [startingFixtureId, setStartingFixtureId] = useState(null)
   const [error, setError] = useState('')
 
   async function handleJoin() {
@@ -268,6 +269,23 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
       setError(err.message)
     } finally {
       setJoining(false)
+    }
+  }
+
+  async function handleStartFixture(fixtureId) {
+    setStartingFixtureId(fixtureId)
+    setError('')
+    try {
+      await apiRequest(`/api/fixtures/${fixtureId}`, {
+        method: 'PATCH',
+        body: { status: 'live' },
+        getToken,
+      })
+      navigate(`/live/fixture/${fixtureId}`)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setStartingFixtureId(null)
     }
   }
 
@@ -361,8 +379,12 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
                   {statusLabel[fixture.status] || fixture.status}
                 </span>
                 {fixture.status === 'scheduled' && fixture.is_home_mine && (
-                  <button className="btn btn-gold" onClick={() => navigate(`/live/fixture/${fixture.id}`)}>
-                    Start live
+                  <button
+                    className="btn btn-gold"
+                    disabled={startingFixtureId === fixture.id}
+                    onClick={() => handleStartFixture(fixture.id)}
+                  >
+                    {startingFixtureId === fixture.id ? 'Starting...' : 'Start live'}
                   </button>
                 )}
                 {fixture.status === 'live' && (
