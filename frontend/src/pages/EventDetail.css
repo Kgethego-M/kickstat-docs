@@ -9,6 +9,12 @@
   gap: 10px;
 }
 
+.event-detail-location {
+  opacity: 0.75;
+  font-size: 0.9rem;
+  margin-top: 0.15rem;
+}
+
 .event-result {
   display: flex;
   align-items: center;
