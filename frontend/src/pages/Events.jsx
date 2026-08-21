@@ -3,6 +3,13 @@ import { useAuth } from '@clerk/clerk-react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
+import { Calendar, dateFnsLocalizer } from 'react-big-calendar'
+import format from 'date-fns/format'
+import parse from 'date-fns/parse'
+import startOfWeek from 'date-fns/startOfWeek'
+import getDay from 'date-fns/getDay'
+import enUS from 'date-fns/locale/en-US'
+import 'react-big-calendar/lib/css/react-big-calendar.css'
 import './Events.css'
 
 const LEAGUES = [
@@ -24,6 +31,15 @@ const proStatusLabel = {
   SUSPENDED: 'Suspended',
   CANCELLED: 'Cancelled',
 }
+
+const locales = { 'en-US': enUS }
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  locales,
+})
 
 const emptyForm = {
   title: '',
@@ -62,6 +78,7 @@ function Events() {
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [viewMode, setViewMode] = useState('list') // 'list' | 'calendar'
 
   // --- Pro Fixtures state ---
   const [activeTab, setActiveTab] = useState('mine')  // 'mine' | 'pro'
@@ -190,6 +207,25 @@ function Events() {
       hour: '2-digit', minute: '2-digit',
     })
   }
+
+  // Convert events into the shape react-big-calendar expects.
+  // Uses main's combined event_date timestamp + duration_minutes
+  // (there is no separate event_time field in this data model).
+  const calendarEvents = events
+    .filter((e) => e.status !== 'cancelled' && e.event_date)
+    .map((e) => {
+      const start = new Date(e.event_date)
+      const durationMs = (e.duration_minutes ? Number(e.duration_minutes) : 60) * 60 * 1000
+      const end = new Date(start.getTime() + durationMs)
+      const icon = e.format === 'league' || e.format === 'tournament' ? '🏆' : '🏃'
+      return {
+        id: e.id,
+        title: `${icon} ${e.title || e.opponent || 'Training'}`,
+        start,
+        end,
+        resource: e,
+      }
+    })
 
   return (
     <Layout>
@@ -324,38 +360,70 @@ function Events() {
             <p>No events yet. Schedule your first match or training session.</p>
           </div>
         ) : (
-          <div className="events-grid">
-            {events.map((event) => (
-              <div key={event.id} className={`event-card event-card-${event.status}`}>
-                <button
-                  type="button"
-                  className="event-card-main"
-                  onClick={() => navigateToEvent(event)}
-                >
-                  <span className={`event-status event-status-${event.status}`}>
-                    {statusLabel[event.status] || event.status}
-                  </span>
-                  <span className="event-card-format">{formatLabel[event.format] || event.format}</span>
-                  <h3 className="event-card-title">{event.title || event.opponent || 'Training session'}</h3>
-                  <span className="event-card-date">
-                    {event.format === 'league' || event.format === 'tournament'
-                      ? `${event.team_count || 0} / ${event.required_teams || '?'} teams joined`
-                      : new Date(event.event_date).toLocaleString()}
-                  </span>
-                  {event.location && <span className="event-card-location">{event.location}</span>}
-                </button>
-                {event.status === 'open' && event.team_count < event.required_teams && (
-                  <button
-                    type="button"
-                    className="btn btn-gold btn-join"
-                    onClick={() => handleJoin(event.id)}
-                  >
-                    Join
-                  </button>
-                )}
+          <>
+            <div className="events-view-toggle">
+              <button
+                type="button"
+                className={`events-view-btn${viewMode === 'list' ? ' events-view-btn-active' : ''}`}
+                onClick={() => setViewMode('list')}
+              >
+                List
+              </button>
+              <button
+                type="button"
+                className={`events-view-btn${viewMode === 'calendar' ? ' events-view-btn-active' : ''}`}
+                onClick={() => setViewMode('calendar')}
+              >
+                Calendar
+              </button>
+            </div>
+
+            {viewMode === 'calendar' ? (
+              <div className="events-calendar">
+                <Calendar
+                  localizer={localizer}
+                  events={calendarEvents}
+                  startAccessor="start"
+                  endAccessor="end"
+                  style={{ height: 500 }}
+                  onSelectEvent={(calEvent) => navigateToEvent(calEvent.resource)}
+                />
               </div>
-            ))}
-          </div>
+            ) : (
+              <div className="events-grid">
+                {events.map((event) => (
+                  <div key={event.id} className={`event-card event-card-${event.status}`}>
+                    <button
+                      type="button"
+                      className="event-card-main"
+                      onClick={() => navigateToEvent(event)}
+                    >
+                      <span className={`event-status event-status-${event.status}`}>
+                        {statusLabel[event.status] || event.status}
+                      </span>
+                      <span className="event-card-format">{formatLabel[event.format] || event.format}</span>
+                      <h3 className="event-card-title">{event.title || event.opponent || 'Training session'}</h3>
+                      <span className="event-card-date">
+                        {event.format === 'league' || event.format === 'tournament'
+                          ? `${event.team_count || 0} / ${event.required_teams || '?'} teams joined`
+                          : new Date(event.event_date).toLocaleString()}
+                      </span>
+                      {event.location && <span className="event-card-location">{event.location}</span>}
+                    </button>
+                    {event.status === 'open' && event.team_count < event.required_teams && (
+                      <button
+                        type="button"
+                        className="btn btn-gold btn-join"
+                        onClick={() => handleJoin(event.id)}
+                      >
+                        Join
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )
       )}
 
