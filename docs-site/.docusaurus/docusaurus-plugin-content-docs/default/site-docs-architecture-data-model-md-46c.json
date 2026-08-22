@@ -1,0 +1,27 @@
+{
+  "id": "architecture/data-model",
+  "title": "Data Model",
+  "description": "This reflects the schema as of the migrations in backend/migrations/ at",
+  "source": "@site/docs/architecture/data-model.md",
+  "sourceDirName": "architecture",
+  "slug": "/architecture/data-model",
+  "permalink": "/architecture/data-model",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://sdp.ms.wits.ac.za/bug-off/sport-coaching-tool/_edit/main/docs-site/docs/architecture/data-model.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Architecture Overview",
+    "permalink": "/architecture/overview"
+  },
+  "next": {
+    "title": "Git Methodology",
+    "permalink": "/contributing"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "architecture/tech-stack",
+  "title": "Tech Stack",
+  "description": "Frontend",
+  "source": "@site/docs/architecture/tech-stack.md",
+  "sourceDirName": "architecture",
+  "slug": "/architecture/tech-stack",
+  "permalink": "/architecture/tech-stack",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://sdp.ms.wits.ac.za/bug-off/sport-coaching-tool/_edit/main/docs-site/docs/architecture/tech-stack.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Architecture",
+    "permalink": "/category/architecture"
+  },
+  "next": {
+    "title": "Architecture Overview",
+    "permalink": "/architecture/overview"
+  }
+}

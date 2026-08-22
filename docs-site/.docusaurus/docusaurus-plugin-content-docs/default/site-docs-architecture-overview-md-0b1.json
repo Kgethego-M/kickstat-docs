@@ -1,0 +1,27 @@
+{
+  "id": "architecture/overview",
+  "title": "Architecture Overview",
+  "description": "The project is split into two independently deployable applications, per the",
+  "source": "@site/docs/architecture/overview.md",
+  "sourceDirName": "architecture",
+  "slug": "/architecture/overview",
+  "permalink": "/architecture/overview",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://sdp.ms.wits.ac.za/bug-off/sport-coaching-tool/_edit/main/docs-site/docs/architecture/overview.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Tech Stack",
+    "permalink": "/architecture/tech-stack"
+  },
+  "next": {
+    "title": "Data Model",
+    "permalink": "/architecture/data-model"
+  }
+}

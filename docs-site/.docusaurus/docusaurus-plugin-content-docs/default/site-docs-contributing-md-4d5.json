@@ -1,0 +1,23 @@
+{
+  "id": "contributing",
+  "title": "Git Methodology",
+  "description": "Branching",
+  "source": "@site/docs/contributing.md",
+  "sourceDirName": ".",
+  "slug": "/contributing",
+  "permalink": "/contributing",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://sdp.ms.wits.ac.za/bug-off/sport-coaching-tool/_edit/main/docs-site/docs/contributing.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 4,
+  "frontMatter": {
+    "sidebar_position": 4
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Data Model",
+    "permalink": "/architecture/data-model"
+  }
+}

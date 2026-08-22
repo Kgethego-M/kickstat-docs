@@ -1,0 +1,27 @@
+{
+  "id": "getting-started/frontend",
+  "title": "Frontend Setup",
+  "description": "The frontend is a React app built with Vite, using",
+  "source": "@site/docs/getting-started/frontend.md",
+  "sourceDirName": "getting-started",
+  "slug": "/getting-started/frontend",
+  "permalink": "/getting-started/frontend",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://sdp.ms.wits.ac.za/bug-off/sport-coaching-tool/_edit/main/docs-site/docs/getting-started/frontend.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Backend Setup",
+    "permalink": "/getting-started/backend"
+  },
+  "next": {
+    "title": "Architecture",
+    "permalink": "/category/architecture"
+  }
+}

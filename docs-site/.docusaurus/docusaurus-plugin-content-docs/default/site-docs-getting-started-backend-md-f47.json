@@ -1,0 +1,27 @@
+{
+  "id": "getting-started/backend",
+  "title": "Backend Setup",
+  "description": "The backend is a Node/Express API backed by PostgreSQL, with authentication",
+  "source": "@site/docs/getting-started/backend.md",
+  "sourceDirName": "getting-started",
+  "slug": "/getting-started/backend",
+  "permalink": "/getting-started/backend",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://sdp.ms.wits.ac.za/bug-off/sport-coaching-tool/_edit/main/docs-site/docs/getting-started/backend.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Getting Started",
+    "permalink": "/category/getting-started"
+  },
+  "next": {
+    "title": "Frontend Setup",
+    "permalink": "/getting-started/frontend"
+  }
+}
