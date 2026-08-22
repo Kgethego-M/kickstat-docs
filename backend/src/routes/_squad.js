@@ -21,6 +21,9 @@ async function getOrCreateUserId(pool, clerkUserId) {
     // Concurrent request already created it
     if (insertErr.code === '23505') {
       const retry = await pool.query('SELECT id FROM users WHERE clerk_id = $1', [clerkUserId]);
+      if (retry.rows.length === 0) {
+        throw new Error(`Race creating user for ${clerkUserId}: unique constraint hit but row missing`, { cause: insertErr });
+      }
       return retry.rows[0].id;
     }
     throw insertErr;
@@ -48,7 +51,30 @@ async function getOwnedSquadId(pool, clerkUserId) {
     }
   }
 
+  if (!squadResult.rows[0]) {
+    throw new Error(`Could not resolve squad for user ${clerkUserId}`, { cause: new Error('squad row missing after create/retry') });
+  }
+
   return squadResult.rows[0].id;
 }
 
-module.exports = { getOrCreateUserId, getOwnedSquadId };
+// Like getOwnedSquadId, but rejects assistants. Use for roster-management
+// routes where only the head coach should write.
+async function getOwnedSquadIdForCoach(pool, clerkUserId) {
+  const userId = await getOrCreateUserId(pool, clerkUserId);
+
+  const userResult = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
+  if (userResult.rows.length === 0) {
+    throw new Error(`User row missing for ${clerkUserId}`);
+  }
+
+  if (userResult.rows[0].role !== 'coach') {
+    const err = new Error('Only coaches can manage the roster');
+    err.status = 403;
+    throw err;
+  }
+
+  return getOwnedSquadId(pool, clerkUserId);
+}
+
+module.exports = { getOrCreateUserId, getOwnedSquadId, getOwnedSquadIdForCoach };

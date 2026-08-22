@@ -5,10 +5,12 @@ import { pool, resetDatabase, seedCoach } from './setup'
 
 
 import eventsRouter from '../../src/routes/events'
+import fixturesRouter from '../../src/routes/fixtures'
 
 const app = express()
 app.use(express.json())
 app.use('/api/events', eventsRouter)
+app.use('/api/fixtures', fixturesRouter)
 
 let squadId
 
@@ -57,6 +59,18 @@ async function createAthlete(overrides = {}) {
     [squadId, overrides.name ?? 'Marcus Hale', overrides.squad_number ?? 9]
   )
   return res.rows[0]
+}
+
+async function createOtherSquad(clerkId) {
+  const userResult = await pool.query(
+    'INSERT INTO users (clerk_id, role) VALUES ($1, $2) RETURNING id',
+    [clerkId, 'coach']
+  )
+  const squadResult = await pool.query(
+    'INSERT INTO squads (coach_id, name) VALUES ($1, $2) RETURNING id',
+    [userResult.rows[0].id, `${clerkId} Squad`]
+  )
+  return { userId: userResult.rows[0].id, squadId: squadResult.rows[0].id }
 }
 
 describe('US13 (integration) — log a scoring moment during a live event', () => {
@@ -175,5 +189,165 @@ describe('US16 (integration) — near-real-time timeline', () => {
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(1)
     expect(res.body[0].action_type).toBe('save')
+  })
+})
+
+describe('League / tournament events', () => {
+  test('AC: creates a league event and auto-adds the creator as the first team', async () => {
+    const res = await request(app)
+      .post('/api/events')
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({
+        title: 'Winter League',
+        format: 'league',
+        required_teams: 3,
+        event_date: new Date().toISOString(),
+      })
+
+    expect(res.status).toBe(201)
+    expect(res.body.format).toBe('league')
+    expect(res.body.required_teams).toBe(3)
+    expect(res.body.status).toBe('open')
+
+    const detail = await request(app)
+      .get(`/api/events/${res.body.id}`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+
+    expect(detail.body.teams).toHaveLength(1)
+    expect(detail.body.teams[0].is_mine).toBe(true)
+  })
+
+  test('AC: joining fills the league and auto-generates a round-robin schedule', async () => {
+    await createOtherSquad('coach_two')
+    await createOtherSquad('coach_three')
+
+    const created = await request(app)
+      .post('/api/events')
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({
+        title: 'Round Robin Test',
+        format: 'league',
+        required_teams: 3,
+        event_date: new Date().toISOString(),
+      })
+    const eventId = created.body.id
+
+    const join1 = await request(app)
+      .post(`/api/events/${eventId}/join`)
+      .set('x-test-clerk-user-id', 'coach_two')
+    expect(join1.status).toBe(200)
+
+    const join2 = await request(app)
+      .post(`/api/events/${eventId}/join`)
+      .set('x-test-clerk-user-id', 'coach_three')
+    expect(join2.status).toBe(200)
+    expect(join2.body.team_count).toBe(3)
+
+    const detail = await request(app)
+      .get(`/api/events/${eventId}`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+
+    expect(detail.body.event.status).toBe('scheduled')
+    expect(detail.body.fixtures).toHaveLength(6) // 3 teams, home + away for each pair
+
+    const pairs = new Set()
+    for (const fixture of detail.body.fixtures) {
+      pairs.add(`${fixture.home_squad_id}-${fixture.away_squad_id}`)
+    }
+    expect(pairs.size).toBe(6)
+  })
+
+  test('AC: standings reflect fixture results using standard football rules', async () => {
+    await createOtherSquad('coach_two')
+    await createOtherSquad('coach_three')
+
+    const created = await request(app)
+      .post('/api/events')
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({
+        title: 'Standings Test',
+        format: 'league',
+        required_teams: 3,
+        event_date: new Date().toISOString(),
+      })
+    const eventId = created.body.id
+
+    await request(app)
+      .post(`/api/events/${eventId}/join`)
+      .set('x-test-clerk-user-id', 'coach_two')
+    await request(app)
+      .post(`/api/events/${eventId}/join`)
+      .set('x-test-clerk-user-id', 'coach_three')
+
+    const fixturesRes = await request(app)
+      .get(`/api/events/${eventId}/fixtures`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+    const homeFixture = fixturesRes.body.find((f) => f.home_squad_id === squadId)
+
+    const athlete = await createAthlete()
+
+    await request(app)
+      .post(`/api/fixtures/${homeFixture.id}/logs`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({ athlete_id: athlete.id, action_type: 'goal', is_scoring: true, value: 2 })
+
+    await request(app)
+      .patch(`/api/fixtures/${homeFixture.id}`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({ status: 'completed' })
+
+    const standingsRes = await request(app)
+      .get(`/api/events/${eventId}/standings`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+
+    expect(standingsRes.status).toBe(200)
+    const creatorRow = standingsRes.body.find((r) => r.squadId === squadId)
+    expect(creatorRow).toMatchObject({ played: 1, wins: 1, draws: 0, losses: 0, gf: 2, ga: 0, gd: 2, points: 3 })
+  })
+
+  test('AC: top scorers and assisters aggregate across league fixtures', async () => {
+    await createOtherSquad('coach_two')
+
+    const created = await request(app)
+      .post('/api/events')
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({
+        title: 'Stats Test',
+        format: 'league',
+        required_teams: 2,
+        event_date: new Date().toISOString(),
+      })
+    const eventId = created.body.id
+
+    await request(app)
+      .post(`/api/events/${eventId}/join`)
+      .set('x-test-clerk-user-id', 'coach_two')
+
+    const fixturesRes = await request(app)
+      .get(`/api/events/${eventId}/fixtures`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+    const homeFixture = fixturesRes.body.find((f) => f.home_squad_id === squadId)
+
+    const scorer = await createAthlete({ name: 'Prolific Striker' })
+    const assister = await createAthlete({ name: 'Creative Playmaker' })
+
+    await request(app)
+      .post(`/api/fixtures/${homeFixture.id}/logs`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({ athlete_id: scorer.id, action_type: 'goal', is_scoring: true, value: 2 })
+    await request(app)
+      .post(`/api/fixtures/${homeFixture.id}/logs`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({ athlete_id: assister.id, action_type: 'assist', is_scoring: false, value: 1 })
+
+    const statsRes = await request(app)
+      .get(`/api/events/${eventId}/stats`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+
+    expect(statsRes.status).toBe(200)
+    expect(statsRes.body.topScorers).toHaveLength(1)
+    expect(statsRes.body.topScorers[0]).toMatchObject({ athleteName: 'Prolific Striker', goals: 2 })
+    expect(statsRes.body.topAssisters).toHaveLength(1)
+    expect(statsRes.body.topAssisters[0]).toMatchObject({ athleteName: 'Creative Playmaker', assists: 1 })
   })
 })

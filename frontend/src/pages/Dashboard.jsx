@@ -48,7 +48,7 @@ function Dashboard() {
 
   useEffect(() => {
     loadLiveMatch()
-    const interval = setInterval(loadLiveMatch, 8000)
+    const interval = setInterval(loadLiveMatch, 5000)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

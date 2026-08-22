@@ -70,7 +70,7 @@ describe('US17 (integration) — per-athlete summary, aggregated across real eve
     const res = await request(app).get(`/api/athletes/${athlete.id}/stats`)
 
     expect(res.status).toBe(200)
-    expect(res.body.stats).toEqual({ goals: 2, penalties: 0, yellowCards: 1, redCards: 0, appearances: 2 })
+    expect(res.body.stats).toEqual({ goals: 2, assists: 0, penalties: 0, yellowCards: 1, redCards: 0, appearances: 2 })
   })
 
   test('404s for an athlete id that does not exist in this squad', async () => {

@@ -7,7 +7,10 @@ const webhooksRouter = require('./routes/webhooks');
 const squadsRouter = require('./routes/squads');
 const athletesRouter = require('./routes/athletes');
 const eventsRouter = require('./routes/events');
+const fixturesRouter = require('./routes/fixtures');
 const invitesRouter = require('./routes/invites');
+const externalRouter = require('./routes/external');
+const weatherRouter = require('./routes/weather');
 
 const app = express();
 
@@ -21,7 +24,10 @@ app.use(clerkMiddleware());
 app.use('/api/squads', squadsRouter);
 app.use('/api/athletes', athletesRouter);
 app.use('/api/events', eventsRouter);
+app.use('/api/fixtures', fixturesRouter);
 app.use('/api/invites', invitesRouter);
+app.use('/api/external', externalRouter);
+app.use('/api/weather', weatherRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
@@ -41,6 +47,7 @@ const sweepPool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function runAutoTransitionSweep() {
   try {
+    // Simple events and league containers
     await sweepPool.query(
       `UPDATE events SET status = 'live', updated_at = now()
        WHERE status = 'scheduled' AND event_date <= now()`
@@ -49,6 +56,20 @@ async function runAutoTransitionSweep() {
       `UPDATE events SET status = 'completed', updated_at = now()
        WHERE status = 'live'
          AND event_date + (COALESCE(duration_minutes, 90) || ' minutes')::interval <= now()`
+    );
+
+    // League/tournament fixtures
+    await sweepPool.query(
+      `UPDATE fixtures SET status = 'live', updated_at = now()
+       WHERE status = 'scheduled' AND event_date <= now()`
+    );
+    await sweepPool.query(
+      `UPDATE fixtures f
+       SET status = 'completed', updated_at = now()
+       FROM events e
+       WHERE f.status = 'live'
+         AND f.event_id = e.id
+         AND f.event_date + (COALESCE(e.duration_minutes, 90) || ' minutes')::interval <= now()`
     );
   } catch (err) {
     console.error('Auto-transition sweep failed:', err.message);
