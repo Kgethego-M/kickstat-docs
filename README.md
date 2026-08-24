@@ -180,7 +180,7 @@ npm run build     # Production build
 
 ## Documentation
 
-Full project documentation is available in the [docs site](./docs/) (Docusaurus).
+Full project documentation is available in the [docs site](./docs-site/) (Docusaurus).
 
 ## License
 
