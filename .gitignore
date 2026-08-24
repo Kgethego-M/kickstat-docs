@@ -3,3 +3,6 @@ node_modules
 .DS_Store
 coverage
 *Zone.Identifier
+
+# Local Netlify folder
+.netlify
