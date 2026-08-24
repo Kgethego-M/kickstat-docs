@@ -2,6 +2,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const { requireAuth, getAuth } = require('../middleware/auth');
 const { getOwnedSquadId, getOwnedSquadIdForCoach } = require('./_squad');
+const { createInvite } = require('./invites');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -23,10 +24,12 @@ router.get('/', requireAuth(), async (req, res) => {
   }
 });
 
-// Add an athlete to the logged-in coach's squad
+// Add an athlete to the logged-in coach's squad. If an email is given, also
+// creates an invite (same mechanism as inviting an assistant) tied to this
+// specific athlete row, so accepting it links to these exact stats (US24/25).
 router.post('/', requireAuth(), async (req, res) => {
   try {
-    const { name, position, squad_number, date_of_birth, contact_info } = req.body;
+    const { name, position, squad_number, date_of_birth, contact_info, email } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Athlete name is required' });
@@ -40,8 +43,21 @@ router.post('/', requireAuth(), async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [squadId, name.trim(), position || null, squad_number || null, date_of_birth || null, contact_info || null]
     );
+    const athlete = result.rows[0];
 
-res.status(201).json(result.rows[0]);
+    let invite = null;
+    if (email && email.trim()) {
+      const coachResult = await pool.query('SELECT id FROM users WHERE clerk_id = $1', [clerkUserId]);
+      invite = await createInvite(pool, {
+        email: email.trim(),
+        squadId,
+        invitedBy: coachResult.rows[0].id,
+        role: 'athlete',
+        athleteId: athlete.id,
+      });
+    }
+
+    res.status(201).json({ ...athlete, invite });
   } catch (err) {
     console.error('Error creating athlete:', err);
     const status = err.status || 500;

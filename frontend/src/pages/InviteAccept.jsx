@@ -1,36 +1,69 @@
-import { useParams } from 'react-router-dom'
-import { SignedIn, SignedOut, SignUpButton, SignInButton, useUser } from '@clerk/clerk-react'
+import { useParams, Navigate } from 'react-router-dom'
+import { SignedIn, SignedOut, SignUpButton, SignInButton, useAuth } from '@clerk/clerk-react'
+import { useState, useEffect, useCallback } from 'react'
 import Layout from '../components/Layout'
+import { apiRequest } from '../lib/api'
 
 function InviteAccept() {
   const { token } = useParams()
-  const { user } = useUser()
+  const { getToken, isSignedIn, isLoaded } = useAuth()
+
+  const [status, setStatus] = useState('idle') // idle | accepting | done | error
+  const [role, setRole] = useState(null)
+  const [error, setError] = useState('')
+
+  const acceptInvite = useCallback(async () => {
+    setStatus('accepting')
+    setError('')
+    try {
+      const result = await apiRequest(`/api/invites/${token}/accept`, {
+        method: 'POST',
+        getToken,
+      })
+      setRole(result.role)
+      setStatus('done')
+    } catch (err) {
+      setError(err.message)
+      setStatus('error')
+    }
+  }, [token, getToken])
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn && status === 'idle') {
+      acceptInvite()
+    }
+  }, [isLoaded, isSignedIn, status, acceptInvite])
+
+  if (status === 'done') {
+    return <Navigate to="/dashboard" replace />
+  }
 
   return (
     <Layout>
       <div className="dashboard-header">
         <span className="dashboard-eyebrow">Invite</span>
         <h1>You've been invited!</h1>
-        <p>Sign up to join as an assistant.</p>
+        <p>Sign up or sign in to join the squad.</p>
       </div>
 
       <SignedOut>
-        <SignUpButton mode="modal" />
+        <SignUpButton mode="modal">
+          <button className="btn btn-gold">Create account</button>
+        </SignUpButton>
         <span style={{ margin: '0 1rem' }} />
-        <SignInButton mode="modal" />
+        <SignInButton mode="modal">
+          <button className="btn btn-ghost">Sign in</button>
+        </SignInButton>
       </SignedOut>
 
       <SignedIn>
-        <p>You're signed in as {user?.primaryEmailAddress?.emailAddress}.</p>
-        <p>
-          If your account was linked to this invite, you should now be an assistant.
-          Go to your <a href="/dashboard">Dashboard</a> to check.
-        </p>
+        {status === 'accepting' && <p>Linking your account…</p>}
+        {status === 'error' && (
+          <div className="roster-error">
+            Couldn't accept this invite: {error}. It may have already been used or expired.
+          </div>
+        )}
       </SignedIn>
-
-      <p style={{ marginTop: '2rem', fontSize: '0.8rem', color: '#888' }}>
-        Invite token: {token}
-      </p>
     </Layout>
   )
 }

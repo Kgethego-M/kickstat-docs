@@ -349,3 +349,98 @@
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Custom Select (replaces native <select> — its dropdown popup can't be
+   reliably restyled with CSS across browsers)
+--------------------------------------------------------------------------- */
+.select {
+  position: relative;
+  width: 100%;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm, var(--radius));
+  background: var(--color-pitch);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.select-trigger:hover {
+  border-color: var(--color-gold);
+}
+
+.select-trigger:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 1px;
+}
+
+.select[aria-expanded="true"] .select-trigger,
+.select-trigger[aria-expanded="true"] {
+  border-color: var(--color-gold);
+}
+
+.select-placeholder {
+  color: var(--color-ink-soft);
+}
+
+.select-chevron {
+  flex-shrink: 0;
+  color: var(--color-ink-soft);
+  transition: transform 0.15s ease;
+}
+
+.select-trigger[aria-expanded="true"] .select-chevron {
+  transform: rotate(180deg);
+  color: var(--color-gold);
+}
+
+.select-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm, var(--radius));
+  background: var(--color-pitch);
+  box-shadow: var(--shadow-card, 0 8px 24px rgba(0, 0, 0, 0.12));
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.select-list:focus {
+  outline: none;
+}
+
+.select-option {
+  padding: 9px 12px;
+  border-radius: var(--radius-sm, 4px);
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.select-option-highlighted {
+  background: var(--color-chalk, rgba(0, 0, 0, 0.04));
+}
+
+.select-option-selected {
+  color: var(--color-gold);
+  font-weight: 600;
+}

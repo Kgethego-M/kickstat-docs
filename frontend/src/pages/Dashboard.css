@@ -12,6 +12,42 @@
   margin-bottom: 6px;
 }
 
+.dashboard-setup-banner {
+  padding: 28px;
+  margin-bottom: 28px;
+  border: 1px dashed var(--color-gold);
+  border-radius: var(--radius);
+  background: var(--color-chalk);
+}
+
+.dashboard-setup-banner h2 {
+  margin-bottom: 8px;
+}
+
+.dashboard-setup-banner p {
+  color: var(--color-ink-soft);
+  margin-bottom: 16px;
+}
+
+.dashboard-setup-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  margin-bottom: 28px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-chalk);
+  font-size: 14px;
+}
+
+.dashboard-setup-progress a {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 13px;
+}
+
 .dashboard-live-banner {
   display: block;
   padding: 24px 28px;

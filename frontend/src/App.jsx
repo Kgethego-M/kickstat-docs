@@ -3,6 +3,7 @@ import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import Roster from './pages/Roster'
 import AthleteStats from './pages/AthleteStats'
+import Setup from './pages/Setup'
 import AccountSettings from './pages/AccountSettings'
 import InviteAccept from './pages/InviteAccept'
 import Events from './pages/Events'
@@ -21,6 +22,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/setup"
+        element={
+          <ProtectedRoute>
+            <Setup />
           </ProtectedRoute>
         }
       />

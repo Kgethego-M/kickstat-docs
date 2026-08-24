@@ -1,5 +1,5 @@
 import { useUser, useAuth } from '@clerk/clerk-react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
@@ -21,6 +21,29 @@ function Dashboard() {
   const [liveResult, setLiveResult] = useState(null)
   const [liveFeed, setLiveFeed] = useState([])
 
+  const [squad, setSquad] = useState(null)
+  const [athleteCount, setAthleteCount] = useState(null)
+
+  const loadSquadSetup = useCallback(async () => {
+    try {
+      const [squadData, athletes] = await Promise.all([
+        apiRequest('/api/squads/mine', { getToken }),
+        apiRequest('/api/athletes', { getToken }),
+      ])
+      setSquad(squadData)
+      setAthleteCount(athletes.length)
+    } catch {
+      setSquad(null)
+      setAthleteCount(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    loadSquadSetup()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const loadLiveMatch = useCallback(async () => {
     try {
       const events = await apiRequest('/api/events', { getToken })
@@ -39,17 +62,21 @@ function Dashboard() {
         setLiveFeed([])
       }
     } catch {
+      // A missing/failed live-match check shouldn't block the rest of the dashboard
       setLiveEvent(null)
       setLiveResult(null)
       setLiveFeed([])
     }
+    // getToken from Clerk isn't a stable reference across renders — depending on it
+    // here would recreate this callback every render and cause an effect/fetch loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     loadLiveMatch()
-    const interval = setInterval(loadLiveMatch, 5000)
+    const interval = setInterval(loadLiveMatch, 8000)
     return () => clearInterval(interval)
+    // Intentionally run once on mount — loadLiveMatch has a stable identity ([] deps above).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -86,6 +113,8 @@ function Dashboard() {
         <span className="dashboard-eyebrow">Overview</span>
         <h1>Welcome back, {firstName}</h1>
       </div>
+
+      {squad && !squad.onboarded && <Navigate to="/setup" replace />}
 
       {liveEvent && liveResult && (
         <Link to={`/live/${liveEvent.id}`} className="dashboard-live-banner">

@@ -11,6 +11,7 @@ const emptyForm = {
   squad_number: '',
   date_of_birth: '',
   contact_info: '',
+  email: '',
 }
 
 function Roster() {
@@ -22,6 +23,7 @@ function Roster() {
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [newInviteLink, setNewInviteLink] = useState(null)
 
   const loadAthletes = useCallback(async () => {
     setLoading(true)
@@ -36,14 +38,15 @@ function Roster() {
     }
   }, [getToken])
 
-useEffect(() => {
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  loadAthletes()
-}, [loadAthletes])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadAthletes()
+  }, [loadAthletes])
 
   function openAddForm() {
     setForm(emptyForm)
     setEditingId(null)
+    setNewInviteLink(null)
     setFormOpen(true)
   }
 
@@ -54,8 +57,10 @@ useEffect(() => {
       squad_number: athlete.squad_number ?? '',
       date_of_birth: athlete.date_of_birth ? athlete.date_of_birth.slice(0, 10) : '',
       contact_info: athlete.contact_info || '',
+      email: '',
     })
     setEditingId(athlete.id)
+    setNewInviteLink(null)
     setFormOpen(true)
   }
 
@@ -74,6 +79,7 @@ useEffect(() => {
 
     setSaving(true)
     setError('')
+    setNewInviteLink(null)
 
     const payload = {
       name: form.name.trim(),
@@ -90,14 +96,20 @@ useEffect(() => {
           body: payload,
           getToken,
         })
+        closeForm()
       } else {
-        await apiRequest('/api/athletes', {
+        const created = await apiRequest('/api/athletes', {
           method: 'POST',
-          body: payload,
+          body: { ...payload, email: form.email.trim() || null },
           getToken,
         })
+        if (created.invite) {
+          // Keep the form open long enough to show/copy the invite link
+          setNewInviteLink(created.invite.inviteLink)
+        } else {
+          closeForm()
+        }
       }
-      closeForm()
       await loadAthletes()
     } catch (err) {
       setError(err.message)
@@ -178,6 +190,17 @@ useEffect(() => {
                 placeholder="Phone or email"
               />
             </label>
+            {!editingId && (
+              <label className="roster-form-wide">
+                Athlete's login email (optional)
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="Sends them an invite link to create their own account"
+                />
+              </label>
+            )}
           </div>
           <div className="roster-form-actions">
             <button type="button" className="btn btn-ghost" onClick={closeForm}>
@@ -187,6 +210,15 @@ useEffect(() => {
               {saving ? 'Saving...' : 'Save athlete'}
             </button>
           </div>
+          {newInviteLink && (
+            <div className="roster-invite-created">
+              <p>Athlete added — share this link so they can create their own login:</p>
+              <code>{newInviteLink}</code>
+              <button type="button" className="btn btn-ghost" onClick={closeForm}>
+                Done
+              </button>
+            </div>
+          )}
         </form>
       )}
 
