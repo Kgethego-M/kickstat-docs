@@ -1,10 +1,8 @@
 const express = require('express');
 const { Webhook } = require('svix');
-const { Pool } = require('pg');
 const { deleteUserByClerkId } = require('../lib/userDeletion');
 
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // NOTE: user.created no longer does anything here. Two other mechanisms
 // already cover account setup, and having a third (this webhook, guessing

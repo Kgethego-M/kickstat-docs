@@ -15,7 +15,6 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [role, setRole] = useState(null)
   const [athleteId, setAthleteId] = useState(null)
-  const [athletes, setAthletes] = useState([])
   const [squad, setSquad] = useState(null)
 
   const [email, setEmail] = useState('')
@@ -34,15 +33,6 @@ function Dashboard() {
       setAthleteId(me.athleteId)
     } catch {
       setRole('coach')
-    }
-  }, [getToken])
-
-  const loadAthletes = useCallback(async () => {
-    try {
-      const data = await apiRequest('/api/athletes', { getToken })
-      setAthletes(data)
-    } catch {
-      setAthletes([])
     }
   }, [getToken])
 
@@ -86,7 +76,6 @@ function Dashboard() {
   useEffect(() => {
     async function loadAll() {
       await loadAccount()
-      await loadAthletes()
       await loadSquad()
       await loadLiveMatch()
       setLoading(false)
