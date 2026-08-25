@@ -114,9 +114,10 @@ jobs:
             echo "SonarQube secrets not set; skipping scan"
             exit 0
           fi
-          docker run --rm \
-            -e SONAR_TOKEN="$SONAR_TOKEN" \
-            -e SONAR_HOST_URL="$SONAR_HOST_URL" \
-            -v "$(pwd):/usr/src" \
-            sonarsource/sonar-scanner-cli:latest
+          curl -fsSL -o sonar-scanner.zip \
+            "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip"
+          unzip -q sonar-scanner.zip
+          ./sonar-scanner-6.2.1.4610-linux-x64/bin/sonar-scanner \
+            -Dsonar.host.url="$SONAR_HOST_URL" \
+            -Dsonar.token="$SONAR_TOKEN"
         continue-on-error: true
