@@ -8,7 +8,7 @@ The project is delivered in four sprints, each with a clear goal and set of user
 
 ## Sprint 0 — Project Setup & Foundation
 
-**Dates:** 24 March 2026 – 30 March 2026
+**Dates:** 26 July 2026 – 1 August 2026
 
 **Goal:** Establish the repository, CI/CD pipeline, tech stack, and initial database schema.
 
@@ -21,7 +21,7 @@ The project is delivered in four sprints, each with a clear goal and set of user
 
 ## Sprint 1 — Authentication, Squad Setup & Roster Management
 
-**Dates:** 06 April 2026 – 13 April 2026
+**Dates:** 1 August 2026 – 25 August 2026
 
 **Goal:** Deliver core onboarding and squad management features.
 
@@ -46,7 +46,7 @@ The project is delivered in four sprints, each with a clear goal and set of user
 
 ## Sprint 2 — Events, Fixtures & Live Match Logging
 
-**Dates:** 14 April 2026 – 28 April 2026 *(planned)*
+**Dates:** 27 August 2026 – 15 September 2026 *(planned)*
 
 **Goal:** Enable coaches to schedule events, generate fixtures, and log live match actions.
 
@@ -68,7 +68,7 @@ The project is delivered in four sprints, each with a clear goal and set of user
 
 ## Sprint 3 — Statistics, Notifications & Advanced Features
 
-**Dates:** 29 April 2026 – 12 May 2026 *(planned)*
+**Dates:** 15 September 2026 – 29 September 2026 *(planned)*
 
 **Goal:** Deliver athlete statistics, notifications, and league standings.
 
@@ -81,7 +81,7 @@ The project is delivered in four sprints, each with a clear goal and set of user
 
 ## Sprint 4 — Polish, Bug Fixes & Deployment Prep
 
-**Dates:** 13 May 2026 – 22 May 2026 *(planned)*
+**Dates:** 29 September 2026 – 11 October 2026 *(planned)*
 
 **Goal:** Fix post-assessment bugs, improve coverage, and prepare for deployment.
 

@@ -9,7 +9,7 @@ sidebar_position: 1
 **Product:** Kickstat — Sport Coaching Tool  
 **Course:** COMS3011A  
 **Team:** bug-off  
-**Duration:** 6 March 2026 – 22 May 2026  
+**Duration:** 26 July 2026 – 23 October 2026  
 **Methodology:** Scrum / Agile with 2-week sprints  
 **Work Tracker:** Gitea Issues and Projects
 
@@ -24,15 +24,6 @@ Give every sports coach a simple, role-aware platform to manage their squad, sch
 3. Add statistics, notifications, and league/tournament support by the end of Sprint 3.
 4. Polish, fix bugs, and deploy by the end of Sprint 4.
 
-## Team Roles
-
-| Role | Member | Responsibilities |
-|---|---|---|
-| Product Owner | Tasmiya Choonara | Prioritise backlog, accept stories, liaise with stakeholders |
-| Scrum Master | Kgethego | Facilitate ceremonies, remove blockers, track sprint health |
-| Frontend Lead | Lindokuhle | React components, UI/UX implementation |
-| Backend Lead | Mmaphefo | API routes, database design, integrations |
-| DevOps / QA | Kgotlelelo | CI/CD runner, testing, deployment pipeline |
 
 ## Tech Stack
 
@@ -84,8 +75,8 @@ A user story is done when:
 
 | Milestone | Date | Deliverable |
 |---|---|---|
-| Sprint 0 end | 30 March 2026 | Repo, CI runner, initial schema |
-| Sprint 1 end | 13 April 2026 | Auth, roster, invites, permissions |
-| Sprint 2 end | 28 April 2026 | Events, live logging, fixtures, weather |
-| Sprint 3 end | 12 May 2026 | Stats, notifications, leagues |
-| Sprint 4 end | 22 May 2026 | Polish, bug fixes, deployment |
+| Sprint 0 end | 26 July 2026 – 1 August 2026 | Repo, CI runner, initial schema |
+| Sprint 1 end | 25 August 2026 | Auth, roster, invites, permissions |
+| Sprint 2 end | 15 September 2026 | Events, live logging, fixtures, weather |
+| Sprint 3 end | 29 September 2026 | Stats, notifications, leagues |
+| Sprint 4 end | 11 October 2026 | Polish, bug fixes, deployment |
