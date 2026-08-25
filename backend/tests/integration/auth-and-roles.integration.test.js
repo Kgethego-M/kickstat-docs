@@ -6,6 +6,7 @@ import { pool, resetDatabase } from './setup'
 
 import webhooksRouter from '../../src/routes/webhooks'
 import athletesRouter from '../../src/routes/athletes'
+import invitesRouter from '../../src/routes/invites'
 
 const app = express()
 // Mirrors src/app.js's ordering: webhooks need the raw body, so they're
@@ -13,6 +14,7 @@ const app = express()
 app.use('/webhooks', webhooksRouter)
 app.use(express.json())
 app.use('/api/athletes', athletesRouter)
+app.use('/api/invites', invitesRouter)
 
 // Clerk webhooks are verified by svix using an HMAC-SHA256 signature over
 // `${id}.${timestamp}.${payload}`, base64-encoded, prefixed "v1,". This
@@ -69,35 +71,18 @@ afterAll(async () => {
   await pool.end()
 })
 
-describe('US1 / US21 — coach registration via Clerk webhook', () => {
-  test('AC: a self-service sign-up (no matching invite) is registered as a coach with a squad', async () => {
-    const res = await postClerkWebhook({
-      type: 'user.created',
-      data: {
-        id: 'clerk_new_coach',
-        email_addresses: [{ email_address: 'coach@example.com' }],
-      },
-    })
+// NOTE: There is no longer a "US1/US21 — coach registration via Clerk
+// webhook" test here. That behavior was deliberately removed from
+// webhooks.js (see the comment at the top of that file) because it raced
+// with _squad.js's self-healing coach+squad creation on first authenticated
+// API call. That self-healing behavior is already covered by
+// squad.integration.test.js ("self-heals by creating a new user row when
+// none exists yet" / "self-heals by creating a squad ... for a brand-new
+// coach") — no need to duplicate it here against a code path that no
+// longer exists.
 
-    expect(res.status).toBe(200)
-
-    const user = await pool.query(
-      'SELECT role, squad_id FROM users WHERE clerk_id = $1',
-      ['clerk_new_coach']
-    )
-    expect(user.rows).toHaveLength(1)
-    expect(user.rows[0].role).toBe('coach')
-    expect(user.rows[0].squad_id).not.toBeNull()
-
-    const squad = await pool.query('SELECT * FROM squads WHERE id = $1', [
-      user.rows[0].squad_id,
-    ])
-    expect(squad.rows).toHaveLength(1)
-  })
-})
-
-describe('US23 — invited assistant registration via Clerk webhook', () => {
-  test('AC: signing up against a pending invite links the account to that squad as an assistant', async () => {
+describe('US23 — invited assistant accepts via POST /api/invites/:token/accept', () => {
+  test('AC: accepting a pending invite links the account to that squad as an assistant', async () => {
     const coach = await pool.query(
       "INSERT INTO users (clerk_id, role) VALUES ('inviting_coach', 'coach') RETURNING id"
     )
@@ -106,20 +91,17 @@ describe('US23 — invited assistant registration via Clerk webhook', () => {
       [coach.rows[0].id, 'Invite Test Squad']
     )
     await pool.query(
-      `INSERT INTO invites (email, squad_id, invited_by, token, status)
-       VALUES ('assistant@example.com', $1, $2, 'test_token', 'pending')`,
+      `INSERT INTO invites (email, squad_id, invited_by, token, role, status)
+       VALUES ('assistant@example.com', $1, $2, 'test_token', 'assistant', 'pending')`,
       [squad.rows[0].id, coach.rows[0].id]
     )
 
-    const res = await postClerkWebhook({
-      type: 'user.created',
-      data: {
-        id: 'clerk_new_assistant',
-        email_addresses: [{ email_address: 'assistant@example.com' }],
-      },
-    })
+    const res = await request(app)
+      .post('/api/invites/test_token/accept')
+      .set('x-test-clerk-user-id', 'clerk_new_assistant')
 
     expect(res.status).toBe(200)
+    expect(res.body).toEqual({ role: 'assistant', squadId: squad.rows[0].id })
 
     const user = await pool.query(
       'SELECT role, squad_id FROM users WHERE clerk_id = $1',
@@ -128,10 +110,16 @@ describe('US23 — invited assistant registration via Clerk webhook', () => {
     expect(user.rows[0].role).toBe('assistant')
     expect(user.rows[0].squad_id).toBe(squad.rows[0].id)
 
-    const invite = await pool.query(
-      "SELECT status FROM invites WHERE token = 'test_token'"
-    )
+    const invite = await pool.query("SELECT status FROM invites WHERE token = 'test_token'")
     expect(invite.rows[0].status).toBe('accepted')
+  })
+
+  test('AC: an unknown or already-used token is rejected', async () => {
+    const res = await request(app)
+      .post('/api/invites/not_a_real_token/accept')
+      .set('x-test-clerk-user-id', 'clerk_someone')
+
+    expect(res.status).toBe(404)
   })
 })
 
@@ -169,10 +157,6 @@ describe('US2 — account deletion cascades via Clerk webhook', () => {
 })
 
 describe('US26 — assistants cannot write to the roster', () => {
-  // This test is expected to FAIL until athletes.js gets a role check.
-  // getOwnedSquadId() currently self-heals a squad for *any* authenticated
-  // caller, so an assistant hitting POST /api/athletes today succeeds and
-  // silently creates their own separate squad rather than being rejected.
   test('AC: an authenticated assistant is rejected (not merely hidden by the UI) when adding an athlete', async () => {
     const coach = await pool.query(
       "INSERT INTO users (clerk_id, role) VALUES ('roster_coach', 'coach') RETURNING id"
