@@ -180,7 +180,7 @@ npm run build     # Production build
 
 ## Documentation
 
-Full project documentation is available in the [docs site](https://kickstat-docs.netlify.app/) (Docusaurus).
+Full project documentation is available in the [docs site](https://kickstat-docs-v2.netlify.app/) (Docusaurus).
 
 ## License
 
