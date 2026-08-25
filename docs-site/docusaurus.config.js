@@ -10,8 +10,8 @@ import {themes as prismThemes} from 'prism-react-renderer';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'Sport Coaching Tool',
-  tagline: 'Documentation for the Sport Coaching Tool platform',
+  title: 'Kickstat',
+  tagline: 'Documentation for the Kickstat sport coaching platform',
   favicon: 'img/favicon.ico',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -22,7 +22,7 @@ const config = {
   // TODO: set this once a deployment target is chosen (GitHub Pages /
   // Cloudflare Pages / other static host). This MUST match the real
   // deployed URL or client-side routing will break.
-  url: 'https://your-docs-site.example.com',
+  url: 'https://kickstat-docs-v2.netlify.app',
   // '/' if deployed at the domain root, '/<repo-name>/' if deployed under
   // a subpath (e.g. the default for GitHub Pages project sites).
   baseUrl: '/',
@@ -85,10 +85,10 @@ const config = {
         respectPrefersColorScheme: true,
       },
       navbar: {
-        title: 'Sport Coaching Tool',
+        title: 'Kickstat',
         logo: {
           // TODO: replace with a real logo in static/img/ once the team has one.
-          alt: 'Sport Coaching Tool Logo',
+          alt: 'Kickstat Logo',
           src: 'img/logo.svg',
         },
         items: [
@@ -135,7 +135,7 @@ const config = {
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} Sport Coaching Tool. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} Kickstat. Built with Docusaurus.`,
       },
       prism: {
         theme: prismThemes.github,
