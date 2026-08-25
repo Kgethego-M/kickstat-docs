@@ -22,19 +22,16 @@ function Dashboard() {
   const [liveFeed, setLiveFeed] = useState([])
 
   const [squad, setSquad] = useState(null)
-  const [athleteCount, setAthleteCount] = useState(null)
 
   const loadSquadSetup = useCallback(async () => {
     try {
-      const [squadData, athletes] = await Promise.all([
+      const [squadData] = await Promise.all([
         apiRequest('/api/squads/mine', { getToken }),
         apiRequest('/api/athletes', { getToken }),
       ])
       setSquad(squadData)
-      setAthleteCount(athletes.length)
     } catch {
       setSquad(null)
-      setAthleteCount(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -178,7 +175,7 @@ function Dashboard() {
         {error && <p style={{ color: 'red', marginTop: '0.5rem' }}>{error}</p>}
         {inviteLink && (
           <div style={{ marginTop: '0.75rem' }}>
-            <p>Invite created! Share this link:</p>
+            <p>Invite email sent! They can also use this link directly:</p>
             <code>{inviteLink}</code>
           </div>
         )}

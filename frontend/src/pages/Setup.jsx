@@ -167,7 +167,7 @@ function Setup() {
           </div>
           {assistantInviteLink && (
             <div className="roster-invite-created">
-              <p>Invite created — share this link:</p>
+              <p>Invite email sent! They can also use this link directly:</p>
               <code>{assistantInviteLink}</code>
             </div>
           )}

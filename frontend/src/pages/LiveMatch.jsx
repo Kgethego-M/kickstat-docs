@@ -29,6 +29,8 @@ function useMatchDetail() {
 
   const pollRef = useRef(null)
   const clockRef = useRef(null)
+  const prevTimelineRef = useRef([])
+  const [newEntryIds, setNewEntryIds] = useState(new Set())
 
   const loadDetail = useCallback(async () => {
     try {
@@ -94,6 +96,8 @@ function useMatchDetail() {
     setError,
     clockMinute,
     loadDetail,
+    activeStatus,
+    newEntryIds,
   }
 }
 
@@ -109,6 +113,8 @@ function LiveMatch() {
     setError,
     clockMinute,
     loadDetail,
+    activeStatus,
+    newEntryIds,
   } = useMatchDetail()
 
   const { getToken } = useAuth()
@@ -120,8 +126,6 @@ function LiveMatch() {
   const [editForm, setEditForm] = useState(null)
   const [editSaving, setEditSaving] = useState(false)
   const [endingFixture, setEndingFixture] = useState(false)
-  const [newEntryIds, setNewEntryIds] = useState(new Set())
-  const prevTimelineRef = useRef([])
   const navigate = useNavigate()
 
   async function handleLog(athleteIdOrOpponent) {

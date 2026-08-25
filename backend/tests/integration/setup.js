@@ -1,29 +1,26 @@
 const { Pool } = require('pg')
 
-// A separate database from your dev one — never point this at 'sportcoach' itself,
-// or tests will TRUNCATE your real data between every test.
-// In CI, the workflow sets DATABASE_URL to the ephemeral Postgres service
-// container (correct host/creds for that environment) but doesn't set
-// TEST_DATABASE_URL specifically — so fall back to DATABASE_URL before the
-// hardcoded local default, rather than silently trying to hit localhost
-// inside the CI container where nothing is listening.
+// Prefer TEST_DATABASE_URL if a dev has set one explicitly. Otherwise, fall
+// back to DATABASE_URL — which CI already sets correctly to the Postgres
+// service container's connection string, so this makes the same setup.js
+// work in both CI and local dev without any CI-specific configuration.
+// Only if neither is set at all does this fall back to a local default,
+// purely for convenience running tests on a laptop with nothing configured.
 const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ||
   process.env.DATABASE_URL ||
   'postgresql://kgethi:devpassword@localhost:5432/sportcoach_test'
 
-// Route files read process.env.DATABASE_URL at import time to build their own
-// Pool — setting it here (before any route file is imported) redirects them
-// at the real test database instead of your dev one.
+// Route files read process.env.DATABASE_URL at import time to build their
+// own Pool — setting it here (before any route file is imported) redirects
+// them at the test database instead of whatever it was pointed at before.
 process.env.DATABASE_URL = TEST_DATABASE_URL
 
 const pool = new Pool({ connectionString: TEST_DATABASE_URL })
 
 async function resetDatabase() {
-  // Children before parents, respecting foreign keys. RESTART IDENTITY so ids
-  // are predictable/small across tests.
   await pool.query(
-    'TRUNCATE log_entries, events, athletes, squads, users RESTART IDENTITY CASCADE'
+    'TRUNCATE log_entries, events, invites, athletes, squads, users RESTART IDENTITY CASCADE'
   )
 }
 

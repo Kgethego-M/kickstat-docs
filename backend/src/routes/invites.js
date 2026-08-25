@@ -2,14 +2,33 @@ const express = require('express')
 const crypto = require('crypto')
 const { Pool } = require('pg')
 const { requireAuth, getAuth } = require('../middleware/auth')
+const { sendInviteEmail } = require('../lib/email')
 
 const router = express.Router()
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 
-// Shared by the assistant-invite form (Dashboard.jsx) and the athlete-invite
-// path (athletes.js, when an email is given on the add-athlete form) — same
-// token mechanism, distinguished by `role` and, for athletes, `athlete_id`.
+// Shared by the assistant-invite form (Dashboard.jsx / Setup.jsx) and the
+// athlete-invite path (athletes.js, when an email is given on the add-athlete
+// form) — same token mechanism, distinguished by `role` and, for athletes,
+// `athlete_id`. Also sends the actual invite email now, rather than just
+// handing back a link to copy/paste.
 async function createInvite(pool, { email, squadId, invitedBy, role = 'assistant', athleteId = null }) {
+  // Don't silently create a second invite for someone who's already been
+  // invited (or has already joined) this squad.
+  const existing = await pool.query(
+    "SELECT id, status FROM invites WHERE email = $1 AND squad_id = $2 AND status IN ('pending','accepted') LIMIT 1",
+    [email, squadId]
+  )
+  if (existing.rows.length > 0) {
+    const err = new Error(
+      existing.rows[0].status === 'accepted'
+        ? 'This person has already joined the squad'
+        : 'An invite has already been sent to this email'
+    )
+    err.status = 409
+    throw err
+  }
+
   const token = crypto.randomBytes(24).toString('hex')
 
   const result = await pool.query(
@@ -18,9 +37,17 @@ async function createInvite(pool, { email, squadId, invitedBy, role = 'assistant
     [email, squadId, invitedBy, token, role, athleteId]
   )
 
+  const squadResult = await pool.query('SELECT name FROM squads WHERE id = $1', [squadId])
+  const squadName = squadResult.rows[0]?.name || 'the squad'
+  const inviteLink = process.env.FRONTEND_URL + '/invite/' + result.rows[0].token
+
+  await sendInviteEmail({ to: email, role, inviteLink, squadName })
+
   return {
     inviteId: result.rows[0].id,
-    inviteLink: process.env.FRONTEND_URL + '/invite/' + result.rows[0].token,
+    // Still returned so the coach has a manual fallback/confirmation — the
+    // frontend no longer treats this as the primary way to deliver it.
+    inviteLink,
   }
 }
 
@@ -67,16 +94,13 @@ router.post('/', requireAuth(), async (req, res) => {
     res.status(201).json(invite)
   } catch (err) {
     console.error('Create invite error:', err.message)
-    res.status(500).json({ error: 'Failed to create invite' })
+    const status = err.status || 500
+    res.status(status).json({ error: status === 409 ? err.message : 'Failed to create invite' })
   }
 })
 
-// POST /api/invites/:token/accept — the single source of truth for linking a
-// newly-signed-up Clerk account to the squad/role/athlete row an invite was
-// created for. Called explicitly by InviteAccept.jsx once the user is signed
-// in, rather than relying on Clerk's webhook (which has no way to know which
-// of our invite tokens a given signup corresponds to, and can race against
-// _squad.js's own self-heal logic).
+// POST /api/invites/:token/accept — links a newly-signed-up Clerk account to
+// the squad/role/athlete row an invite was created for.
 router.post('/:token/accept', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkId } = getAuth(req)
@@ -93,9 +117,6 @@ router.post('/:token/accept', requireAuth(), async (req, res) => {
 
     const invite = inviteResult.rows[0]
 
-    // Upsert: covers both "no users row yet" and "_squad.js's self-heal
-    // already created a default coach+squad for this clerk_id before this
-    // ran" — either way, this invite's role/squad wins.
     const userResult = await pool.query(
       `INSERT INTO users (clerk_id, role, squad_id)
        VALUES ($1, $2, $3)

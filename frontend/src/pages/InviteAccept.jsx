@@ -9,18 +9,16 @@ function InviteAccept() {
   const { getToken, isSignedIn, isLoaded } = useAuth()
 
   const [status, setStatus] = useState('idle') // idle | accepting | done | error
-  const [role, setRole] = useState(null)
   const [error, setError] = useState('')
 
   const acceptInvite = useCallback(async () => {
     setStatus('accepting')
     setError('')
     try {
-      const result = await apiRequest(`/api/invites/${token}/accept`, {
+      await apiRequest(`/api/invites/${token}/accept`, {
         method: 'POST',
         getToken,
       })
-      setRole(result.role)
       setStatus('done')
     } catch (err) {
       setError(err.message)

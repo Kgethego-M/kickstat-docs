@@ -61,7 +61,7 @@ router.post('/', requireAuth(), async (req, res) => {
   } catch (err) {
     console.error('Error creating athlete:', err);
     const status = err.status || 500;
-    const message = status === 403 ? err.message : 'Server error';
+    const message = (status === 403 || status === 409) ? err.message : 'Server error';
     res.status(status).json({ error: message });
   }
 });
@@ -147,7 +147,7 @@ router.patch('/:id', requireAuth(), async (req, res) => {
   } catch (err) {
     console.error('Error updating athlete:', err.message);
     const status = err.status || 500;
-    const message = status === 403 ? err.message : 'Server error';
+    const message = (status === 403 || status === 409) ? err.message : 'Server error';
     res.status(status).json({ error: message });
   }
 });
@@ -171,7 +171,7 @@ router.delete('/:id', requireAuth(), async (req, res) => {
   } catch (err) {
     console.error('Error deleting athlete:', err.message);
     const status = err.status || 500;
-    const message = status === 403 ? err.message : 'Server error';
+    const message = (status === 403 || status === 409) ? err.message : 'Server error';
     res.status(status).json({ error: message });
   }
 });
