@@ -11,6 +11,7 @@ const fixturesRouter = require('./routes/fixtures');
 const invitesRouter = require('./routes/invites');
 const externalRouter = require('./routes/external');
 const accountRouter = require('./routes/account');
+const weatherRouter = require('./routes/weather');
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/fixtures', fixturesRouter);
 app.use('/api/invites', invitesRouter);
 app.use('/api/external', externalRouter);
 app.use('/api/account', accountRouter);
+app.use('/api/weather', weatherRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

@@ -1,0 +1,8 @@
+{
+  "label": "Team Log",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "Internal team meeting notes and progress updates."
+  }
+}

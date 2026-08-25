@@ -115,6 +115,16 @@
   color: #fff;
 }
 
+.live-action-orange {
+  background: #e07b2e;
+  color: #fff;
+}
+
+.live-action-penalty {
+  background: #e07b2e;
+  color: #fff;
+}
+
 .live-who-panel {
   border: 1px solid var(--color-line);
   border-radius: var(--radius);
@@ -211,3 +221,38 @@
   font-size: 13px;
   color: var(--color-ink-soft);
 }
+
+/* Live pulse dot on scoreboard */
+.live-pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e04040;
+  animation: livePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.4); }
+}
+
+/* Flash-in animation for newly added timeline entries */
+.live-timeline-entry--new {
+  animation: timelineFlash 0.8s ease-out;
+}
+
+@keyframes timelineFlash {
+  0% { background: rgba(218, 165, 32, 0.15); border-color: var(--color-gold); }
+  100% { background: var(--color-pitch); border-color: var(--color-line); }
+}
+
+/* Action-type colour accent on timeline minute badge */
+.live-timeline-minute--goal { color: #1f6f4a; }
+.live-timeline-minute--card { color: #b3392f; }
+.live-timeline-minute--penalty { color: #e07b2e; }

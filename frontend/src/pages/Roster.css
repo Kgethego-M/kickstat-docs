@@ -146,3 +146,7 @@
   gap: 8px;
   margin-top: 16px;
 }
+
+.roster-added-confirmation p {
+  margin-bottom: 4px;
+}

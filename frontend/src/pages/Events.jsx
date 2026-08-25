@@ -3,6 +3,7 @@ import { useAuth } from '@clerk/clerk-react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
+import WeatherWidget from '../components/WeatherWidget'
 import './Events.css'
 
 const LEAGUES = [
@@ -33,6 +34,7 @@ const emptyForm = {
   required_teams: '4',
   event_date: '',
   duration_minutes: '90',
+  location: '',
 }
 
 const statusLabel = {
@@ -117,6 +119,7 @@ function Events() {
       required_teams: isLeague ? Number(form.required_teams) : null,
       event_date: form.event_date,
       duration_minutes: form.duration_minutes ? Number(form.duration_minutes) : 90,
+      location: form.location.trim() || null,
     }
 
     try {
@@ -303,7 +306,18 @@ function Events() {
                 onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })}
               />
             </label>
+            <label>
+              Location
+              <input
+                type="text"
+                value={form.location}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                placeholder="e.g. Wits Main Oval, Johannesburg"
+              />
+            </label>
           </div>
+
+          <WeatherWidget location={form.location} compact />
           <div className="roster-form-actions">
             <button type="button" className="btn btn-ghost" onClick={closeForm}>
               Cancel

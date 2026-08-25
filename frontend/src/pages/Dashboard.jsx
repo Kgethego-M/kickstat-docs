@@ -7,13 +7,6 @@ import './Dashboard.css'
 
 const API_URL = import.meta.env.VITE_API_URL
 
-const emptyAthleteForm = {
-  name: '',
-  position: '',
-  squad_number: '',
-  email: '',
-}
-
 function Dashboard() {
   const { user } = useUser()
   const { getToken } = useAuth()
@@ -23,6 +16,7 @@ function Dashboard() {
   const [role, setRole] = useState(null)
   const [athleteId, setAthleteId] = useState(null)
   const [athletes, setAthletes] = useState([])
+  const [squad, setSquad] = useState(null)
 
   const [email, setEmail] = useState('')
   const [inviteLink, setInviteLink] = useState(null)
@@ -33,13 +27,6 @@ function Dashboard() {
   const [liveResult, setLiveResult] = useState(null)
   const [liveFeed, setLiveFeed] = useState([])
 
-  // First-login setup state
-  const [teamName, setTeamName] = useState('')
-  const [setupAthleteForm, setSetupAthleteForm] = useState(emptyAthleteForm)
-  const [setupSaving, setSetupSaving] = useState(false)
-  const [setupError, setSetupError] = useState('')
-  const [setupInviteLink, setSetupInviteLink] = useState(null)
-
   const loadAccount = useCallback(async () => {
     try {
       const me = await apiRequest('/api/account/me', { getToken })
@@ -47,11 +34,8 @@ function Dashboard() {
       setAthleteId(me.athleteId)
     } catch {
       setRole('coach')
-    } finally {
-      setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [getToken])
 
   const loadAthletes = useCallback(async () => {
     try {
@@ -60,18 +44,16 @@ function Dashboard() {
     } catch {
       setAthletes([])
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [getToken])
 
   const loadSquad = useCallback(async () => {
     try {
       const data = await apiRequest('/api/squads/mine', { getToken })
-      setTeamName(data.name || '')
+      setSquad(data)
     } catch {
-      setTeamName('')
+      setSquad(null)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [getToken])
 
   const loadLiveMatch = useCallback(async () => {
     try {
@@ -91,20 +73,28 @@ function Dashboard() {
         setLiveFeed([])
       }
     } catch {
+      // A missing/failed live-match check shouldn't block the rest of the dashboard
       setLiveEvent(null)
       setLiveResult(null)
       setLiveFeed([])
     }
+    // getToken from Clerk isn't a stable reference across renders — depending on it
+    // here would recreate this callback every render and cause an effect/fetch loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
-    loadAccount()
-    loadAthletes()
-    loadSquad()
-    loadLiveMatch()
+    async function loadAll() {
+      await loadAccount()
+      await loadAthletes()
+      await loadSquad()
+      await loadLiveMatch()
+      setLoading(false)
+    }
+    loadAll()
     const interval = setInterval(loadLiveMatch, 8000)
     return () => clearInterval(interval)
+    // Intentionally run once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -135,66 +125,6 @@ function Dashboard() {
     }
   }
 
-  async function handleFinishSetup(e) {
-    e.preventDefault()
-    if (!teamName.trim()) {
-      setSetupError('Team name is required')
-      return
-    }
-    if (athletes.length === 0) {
-      setSetupError('Add at least one athlete to finish setup')
-      return
-    }
-    setSetupSaving(true)
-    setSetupError('')
-    try {
-      await apiRequest('/api/squads/mine', {
-        method: 'PATCH',
-        body: { name: teamName.trim() },
-        getToken,
-      })
-      await loadSquad()
-    } catch (err) {
-      setSetupError(err.message)
-    } finally {
-      setSetupSaving(false)
-    }
-  }
-
-  async function handleAddSetupAthlete(e) {
-    e.preventDefault()
-    if (!setupAthleteForm.name.trim()) {
-      setSetupError('Athlete name is required')
-      return
-    }
-    setSetupSaving(true)
-    setSetupError('')
-    setSetupInviteLink(null)
-    try {
-      const created = await apiRequest('/api/athletes', {
-        method: 'POST',
-        body: {
-          name: setupAthleteForm.name.trim(),
-          position: setupAthleteForm.position.trim() || null,
-          squad_number: setupAthleteForm.squad_number
-            ? Number(setupAthleteForm.squad_number)
-            : null,
-          email: setupAthleteForm.email.trim() || null,
-        },
-        getToken,
-      })
-      setAthletes((prev) => [...prev, created])
-      setSetupAthleteForm(emptyAthleteForm)
-      if (created.inviteLink) {
-        setSetupInviteLink(created.inviteLink)
-      }
-    } catch (err) {
-      setSetupError(err.message)
-    } finally {
-      setSetupSaving(false)
-    }
-  }
-
   if (loading) {
     return (
       <Layout>
@@ -207,105 +137,9 @@ function Dashboard() {
     return <Navigate to={`/roster/${athleteId}`} replace />
   }
 
-  // First-login guided squad setup for coaches with no athletes yet.
-  if (role === 'coach' && athletes.length === 0) {
-    return (
-      <Layout>
-        <div className="dashboard-header">
-          <span className="dashboard-eyebrow">Setup</span>
-          <h1>Let's build your squad</h1>
-          <p>Give your squad a name and add your first athletes to get started.</p>
-        </div>
-
-        {setupError && <div className="roster-error">{setupError}</div>}
-
-        <form className="roster-form" onSubmit={handleFinishSetup}>
-          <h3>Squad name</h3>
-          <label className="roster-form-wide">
-            <input
-              type="text"
-              value={teamName}
-              onChange={(e) => setTeamName(e.target.value)}
-              placeholder="e.g. Riverside Under-12s"
-              required
-            />
-          </label>
-
-          <h3 style={{ marginTop: '1.5rem' }}>Add your first athlete</h3>
-          <div className="roster-form-grid">
-            <label>
-              Name
-              <input
-                type="text"
-                value={setupAthleteForm.name}
-                onChange={(e) =>
-                  setSetupAthleteForm({ ...setupAthleteForm, name: e.target.value })
-                }
-                required
-              />
-            </label>
-            <label>
-              Position
-              <input
-                type="text"
-                value={setupAthleteForm.position}
-                onChange={(e) =>
-                  setSetupAthleteForm({ ...setupAthleteForm, position: e.target.value })
-                }
-                placeholder="e.g. Striker"
-              />
-            </label>
-            <label>
-              Squad number
-              <input
-                type="number"
-                min="0"
-                value={setupAthleteForm.squad_number}
-                onChange={(e) =>
-                  setSetupAthleteForm({ ...setupAthleteForm, squad_number: e.target.value })
-                }
-              />
-            </label>
-            <label>
-              Email (optional invite)
-              <input
-                type="email"
-                value={setupAthleteForm.email}
-                onChange={(e) =>
-                  setSetupAthleteForm({ ...setupAthleteForm, email: e.target.value })
-                }
-                placeholder="athlete@example.com"
-              />
-            </label>
-          </div>
-
-          <div className="roster-form-actions">
-            <button
-              type="button"
-              className="btn btn-gold"
-              disabled={setupSaving}
-              onClick={handleAddSetupAthlete}
-            >
-              {setupSaving ? 'Saving...' : 'Add athlete'}
-            </button>
-            <button
-              type="submit"
-              className="btn btn-ghost"
-              disabled={setupSaving || athletes.length === 0}
-            >
-              Finish setup
-            </button>
-          </div>
-
-          {setupInviteLink && (
-            <div style={{ marginTop: '1rem' }}>
-              <p>Invite created! Share this link with the athlete:</p>
-              <code>{setupInviteLink}</code>
-            </div>
-          )}
-        </form>
-      </Layout>
-    )
+  // Coaches who haven't finished onboarding are sent to the guided setup flow.
+  if (squad && !squad.onboarded) {
+    return <Navigate to="/setup" replace />
   }
 
   return (
@@ -381,7 +215,7 @@ function Dashboard() {
           {inviteError && <p style={{ color: 'red', marginTop: '0.5rem' }}>{inviteError}</p>}
           {inviteLink && (
             <div style={{ marginTop: '0.75rem' }}>
-              <p>Invite created! Share this link:</p>
+              <p>Invite email sent! They can also use this link directly:</p>
               <code>{inviteLink}</code>
             </div>
           )}

@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
 import { ACTION_TYPES, formatActionType } from '../lib/actions'
+import WeatherWidget from '../components/WeatherWidget'
 import './EventDetail.css'
 
 const emptyLogForm = {
@@ -129,8 +130,9 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
           <span className="dashboard-eyebrow">
             {event.event_type === 'match' ? 'Match' : 'Training'} · {event.status}
           </span>
-          <h1>{event.opponent || 'Training session'}</h1>
+           <h1>{event.opponent || 'Training session'}</h1>
           <p className="event-detail-date">{new Date(event.event_date).toLocaleString()}</p>
+          {event.location && <p className="event-detail-location">📍 {event.location}</p>}
         </div>
         <div className="event-detail-actions">
           {event.status === 'scheduled' && (
@@ -142,9 +144,11 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
             <button className="btn btn-danger" disabled={statusSaving} onClick={() => handleStatusChange('completed')}>
               End event
             </button>
-          )}
+         )}
         </div>
       </div>
+
+      {event.location && <WeatherWidget location={event.location} />}
 
       {error && <div className="roster-error">{error}</div>}
 
@@ -299,10 +303,11 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
           <span className="dashboard-eyebrow">
             {event.format === 'league' ? 'League' : 'Tournament'} · {statusLabel[event.status] || event.status}
           </span>
-          <h1>{event.title || 'Untitled league'}</h1>
+         <h1>{event.title || 'Untitled league'}</h1>
           <p className="event-detail-date">
             {teams.length} / {event.required_teams} teams joined
           </p>
+          {event.location && <p className="event-detail-location">📍 {event.location}</p>}
         </div>
         {isOpen && !mySquadJoined && (
           <button className="btn btn-gold" disabled={joining} onClick={handleJoin}>
@@ -310,6 +315,8 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
           </button>
         )}
       </div>
+
+      {event.location && <WeatherWidget location={event.location} />}
 
       {error && <div className="roster-error">{error}</div>}
 

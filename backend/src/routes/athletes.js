@@ -1,8 +1,8 @@
 const express = require('express');
-const crypto = require('crypto');
 const { Pool } = require('pg');
 const { requireAuth, getAuth } = require('../middleware/auth');
 const { getOwnedSquadId, getOwnedSquadIdForCoach, getOrCreateUserId } = require('./_squad');
+const { createInvite } = require('./invites');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -24,8 +24,9 @@ router.get('/', requireAuth(), async (req, res) => {
   }
 });
 
-// Add an athlete to the logged-in coach's squad.
-// If an email is provided, a pending athlete invite is created for that address.
+// Add an athlete to the logged-in coach's squad. If an email is given, also
+// creates an invite (same mechanism as inviting an assistant) tied to this
+// specific athlete row, so accepting it links to these exact stats (US24/25).
 router.post('/', requireAuth(), async (req, res) => {
   try {
     const { name, position, squad_number, date_of_birth, contact_info, email } = req.body;
@@ -47,25 +48,24 @@ router.post('/', requireAuth(), async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [squadId, name.trim(), position || null, squad_number || null, date_of_birth || null, contact_info || null, email || null]
     );
-
     const athlete = result.rows[0];
-    let inviteLink = null;
 
-    if (email) {
-      const token = crypto.randomBytes(24).toString('hex');
-      await pool.query(
-        `INSERT INTO invites (email, squad_id, invited_by, token, status, role, athlete_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [email.trim(), squadId, userId, token, 'pending', 'athlete', athlete.id]
-      );
-      inviteLink = process.env.FRONTEND_URL + '/invite/' + token;
+    let invite = null;
+    if (email && email.trim()) {
+      invite = await createInvite(pool, {
+        email: email.trim(),
+        squadId,
+        invitedBy: userId,
+        role: 'athlete',
+        athleteId: athlete.id,
+      });
     }
 
-    res.status(201).json({ ...athlete, inviteLink });
+    res.status(201).json({ ...athlete, invite });
   } catch (err) {
     console.error('Error creating athlete:', err);
     const status = err.status || 500;
-    const message = status === 403 ? err.message : 'Server error';
+    const message = (status === 403 || status === 409) ? err.message : 'Server error';
     res.status(status).json({ error: message });
   }
 });
@@ -156,7 +156,7 @@ router.patch('/:id', requireAuth(), async (req, res) => {
   } catch (err) {
     console.error('Error updating athlete:', err.message);
     const status = err.status || 500;
-    const message = status === 403 ? err.message : 'Server error';
+    const message = (status === 403 || status === 409) ? err.message : 'Server error';
     res.status(status).json({ error: message });
   }
 });
@@ -180,7 +180,7 @@ router.delete('/:id', requireAuth(), async (req, res) => {
   } catch (err) {
     console.error('Error deleting athlete:', err.message);
     const status = err.status || 500;
-    const message = status === 403 ? err.message : 'Server error';
+    const message = (status === 403 || status === 409) ? err.message : 'Server error';
     res.status(status).json({ error: message });
   }
 });

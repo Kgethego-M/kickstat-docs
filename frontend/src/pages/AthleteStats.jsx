@@ -3,6 +3,7 @@ import { useAuth } from '@clerk/clerk-react'
 import { useParams, Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
+import { formatActionType } from '../lib/actions'
 import './AthleteStats.css'
 
 function AthleteStats() {
@@ -66,8 +67,16 @@ function AthleteStats() {
 
       <div className="stats-grid">
         <div className="stats-card">
+          <span className="stats-value">{stats.appearances}</span>
+          <span className="stats-label">Appearances</span>
+        </div>
+        <div className="stats-card">
           <span className="stats-value">{stats.goals}</span>
           <span className="stats-label">Goals</span>
+        </div>
+        <div className="stats-card">
+          <span className="stats-value">{stats.assists}</span>
+          <span className="stats-label">Assists</span>
         </div>
         <div className="stats-card">
           <span className="stats-value">{stats.penalties}</span>
@@ -81,10 +90,6 @@ function AthleteStats() {
           <span className="stats-value">{stats.redCards}</span>
           <span className="stats-label">Red Cards</span>
         </div>
-        <div className="stats-card">
-          <span className="stats-value">{stats.appearances}</span>
-          <span className="stats-label">Appearances</span>
-        </div>
       </div>
 
       <h3 className="live-section-heading">Logged Actions</h3>
@@ -96,13 +101,20 @@ function AthleteStats() {
         <div className="live-timeline">
           {logs.map((entry) => (
             <div className="live-timeline-entry" key={entry.id}>
-              <span className="live-timeline-minute">
+              <span className={`live-timeline-minute ${
+                entry.action_type === 'goal' ? 'live-timeline-minute--goal'
+                : entry.action_type.includes('card') ? 'live-timeline-minute--card'
+                : entry.action_type.includes('penalty') ? 'live-timeline-minute--penalty'
+                : ''
+              }`}>
                 {entry.minute != null ? `${entry.minute}'` : '—'}
               </span>
               <div className="live-timeline-body">
-                <span className="live-timeline-action">{entry.action_type.replace(/_/g, ' ')}</span>
+                <span className="live-timeline-action">{formatActionType(entry.action_type)}</span>
                 <span className="live-timeline-who">
-                  {entry.opponent ? `vs ${entry.opponent}` : 'Training'} · {new Date(entry.event_date).toLocaleDateString()}
+                  {entry.opponent ? `vs ${entry.opponent}` : 'Training'}
+                  {' · '}
+                  {new Date(entry.event_date).toLocaleDateString()}
                 </span>
               </div>
             </div>

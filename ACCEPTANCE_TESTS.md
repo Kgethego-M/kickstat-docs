@@ -89,6 +89,11 @@ Automated: covered in `roster-and-events-basic.integration.test.js` (`US5`). The
 
 Automated: covered in `roster-and-events-basic.integration.test.js` (`US6`), including a non-owner-denied case on cancel. "No longer loggable" (the second half of the cancel AC) isn't yet asserted — `events.js`'s log-entry routes (`POST /:id/logs`) don't currently check the event's `status` before accepting a new log, so a cancelled event can still be logged against. Worth a follow-up test once that check exists, similar to the `US26` gap.
 
+### US18 — Venue Weather Forecast
+- Given a coach is on an event's creation or detail page, When the event has a venue set, Then the current weather for that venue is shown, pulled from a public weather API.
+
+Automated: covered in `backend/tests/integration/weather.integration.test.js`. Uses Open-Meteo (free, no API key needed) — geocodes the venue's free-text name, then fetches current conditions + a 3-day outlook. Shown both on the event creation form (live preview as the coach types a venue) and on the event detail page (once saved) via a shared `WeatherWidget` component.
+
 ---
 
 ## E4 · Infrastructure & Documentation

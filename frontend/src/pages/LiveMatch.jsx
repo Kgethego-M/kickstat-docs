@@ -29,6 +29,8 @@ function useMatchDetail() {
 
   const pollRef = useRef(null)
   const clockRef = useRef(null)
+  const prevTimelineRef = useRef([])
+  const [newEntryIds, setNewEntryIds] = useState(new Set())
 
   const loadDetail = useCallback(async () => {
     try {
@@ -53,10 +55,25 @@ function useMatchDetail() {
 
   useEffect(() => {
     if (activeStatus === 'live') {
-      pollRef.current = setInterval(loadDetail, 5000)
+      pollRef.current = setInterval(loadDetail, 3000)
       return () => clearInterval(pollRef.current)
     }
   }, [activeStatus, loadDetail])
+
+  // Track newly added timeline entries for flash animation
+  useEffect(() => {
+    const currentIds = new Set((detail?.timeline || []).map((e) => e.id))
+    const prevIds = prevTimelineRef.current
+    if (prevIds.length > 0) {
+      const fresh = new Set()
+      currentIds.forEach((id) => { if (!prevIds.includes(id)) fresh.add(id) })
+      if (fresh.size > 0) {
+        setNewEntryIds(fresh)
+        setTimeout(() => setNewEntryIds(new Set()), 1000)
+      }
+    }
+    prevTimelineRef.current = [...currentIds]
+  }, [detail?.timeline])
 
   useEffect(() => {
     if (!activeDate) return
@@ -78,6 +95,8 @@ function useMatchDetail() {
     setError,
     clockMinute,
     loadDetail,
+    activeStatus,
+    newEntryIds,
   }
 }
 
@@ -93,6 +112,8 @@ function LiveMatch() {
     setError,
     clockMinute,
     loadDetail,
+    activeStatus,
+    newEntryIds,
   } = useMatchDetail()
 
   const { getToken } = useAuth()
@@ -249,6 +270,12 @@ function LiveMatch() {
           </h1>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {activeStatus === 'live' && (
+            <span className="live-pulse">
+              <span className="live-pulse-dot" />
+              <span style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#e04040' }}>Live</span>
+            </span>
+          )}
           {isFixture && event.status === 'live' && canLog && (
             <button
               type="button"
@@ -331,10 +358,21 @@ function LiveMatch() {
         </div>
       ) : (
         <div className="live-timeline">
-          {timeline.map((entry) => (
+          {timeline.map((entry) => {
+            const minuteClass = entry.action_type === 'goal'
+              ? 'live-timeline-minute--goal'
+              : entry.action_type.includes('card')
+                ? 'live-timeline-minute--card'
+                : entry.action_type.includes('penalty')
+                  ? 'live-timeline-minute--penalty'
+                  : ''
+            const isNew = newEntryIds.has(entry.id)
+            return (
             <div key={entry.id}>
-              <div className="live-timeline-entry">
-                <span className="live-timeline-minute">{entry.minute != null ? `${entry.minute}'` : '—'}</span>
+              <div className={`live-timeline-entry${isNew ? ' live-timeline-entry--new' : ''}`}>
+                <span className={`live-timeline-minute ${minuteClass}`}>
+                  {entry.minute != null ? `${entry.minute}'` : '—'}
+                </span>
                 <div className="live-timeline-body">
                   <span className="live-timeline-action">{formatActionType(entry.action_type)}</span>
                   <span className="live-timeline-who">{entry.athlete_name || 'Opponent'}</span>
@@ -417,7 +455,8 @@ function LiveMatch() {
                 </form>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </Layout>

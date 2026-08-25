@@ -24,7 +24,7 @@ function Roster() {
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState(null)
   const [saving, setSaving] = useState(false)
-  const [inviteLink, setInviteLink] = useState(null)
+  const [justAdded, setJustAdded] = useState(null)
 
   const isCoach = role === 'coach'
 
@@ -58,7 +58,7 @@ function Roster() {
   function openAddForm() {
     setForm(emptyForm)
     setEditingId(null)
-    setInviteLink(null)
+    setJustAdded(null)
     setFormOpen(true)
   }
 
@@ -72,7 +72,7 @@ function Roster() {
       email: athlete.email || '',
     })
     setEditingId(athlete.id)
-    setInviteLink(null)
+    setJustAdded(null)
     setFormOpen(true)
   }
 
@@ -80,6 +80,7 @@ function Roster() {
     setFormOpen(false)
     setForm(emptyForm)
     setEditingId(null)
+    setJustAdded(null)
   }
 
   async function handleSubmit(e) {
@@ -91,7 +92,7 @@ function Roster() {
 
     setSaving(true)
     setError('')
-    setInviteLink(null)
+    setJustAdded(null)
 
     const payload = {
       name: form.name.trim(),
@@ -109,17 +110,23 @@ function Roster() {
           body: payload,
           getToken,
         })
+        closeForm()
       } else {
+        const emailToInvite = form.email.trim()
         const created = await apiRequest('/api/athletes', {
           method: 'POST',
-          body: payload,
+          body: { ...payload, email: emailToInvite || null },
           getToken,
         })
-        if (created.inviteLink) {
-          setInviteLink(created.inviteLink)
-        }
+        // Swap the form out for a confirmation immediately — no Save button
+        // remains, so there's nothing left to double-click.
+        setFormOpen(false)
+        setJustAdded({
+          name: created.name,
+          invited: !!created.invite,
+          email: emailToInvite,
+        })
       }
-      closeForm()
       await loadAthletes()
     } catch (err) {
       setError(err.message)
@@ -202,15 +209,17 @@ function Roster() {
                 placeholder="Phone or email"
               />
             </label>
-            <label className="roster-form-wide">
-              Login email (optional invite)
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="athlete@example.com"
-              />
-            </label>
+            {!editingId && (
+              <label className="roster-form-wide">
+                Athlete's login email (optional)
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="Sends them an invite email to create their own account"
+                />
+              </label>
+            )}
           </div>
           <div className="roster-form-actions">
             <button type="button" className="btn btn-ghost" onClick={closeForm}>
@@ -223,10 +232,20 @@ function Roster() {
         </form>
       )}
 
-      {inviteLink && (
-        <div className="dashboard-card" style={{ marginTop: '1rem' }}>
-          <p>Invite created! Share this link with the athlete:</p>
-          <code>{inviteLink}</code>
+      {justAdded && (
+        <div className="roster-form roster-added-confirmation">
+          <p>
+            <strong>{justAdded.name}</strong> was added to the roster.
+            {justAdded.invited && ` An invite email has been sent to ${justAdded.email}.`}
+          </p>
+          <div className="roster-form-actions">
+            <button type="button" className="btn btn-ghost" onClick={() => setJustAdded(null)}>
+              Done
+            </button>
+            <button type="button" className="btn btn-gold" onClick={openAddForm}>
+              Add another
+            </button>
+          </div>
         </div>
       )}
 
