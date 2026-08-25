@@ -110,6 +110,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
+          SONAR_TOKEN=$(echo -n "$SONAR_TOKEN" | tr -d '[:space:]')
+          SONAR_HOST_URL=$(echo -n "$SONAR_HOST_URL" | tr -d '[:space:]')
           if [ -z "$SONAR_TOKEN" ] || [ -z "$SONAR_HOST_URL" ]; then
             echo "SonarQube secrets not set; skipping scan"
             exit 0
