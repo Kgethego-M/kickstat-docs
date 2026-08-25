@@ -5,12 +5,17 @@ import { apiRequest } from '../lib/api'
 import './AccountSettings.css'
 
 function AccountSettings() {
-  const { getToken } = useAuth()
+  const { getToken, signOut } = useAuth()
   const [teamName, setTeamName] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   const loadSquad = useCallback(async () => {
     setLoading(true)
@@ -54,6 +59,25 @@ function AccountSettings() {
     }
   }
 
+  async function handleDeleteAccount(e) {
+    e.preventDefault()
+    if (deleteConfirmText !== 'DELETE') {
+      setDeleteError('Please type DELETE to confirm')
+      return
+    }
+
+    setDeleting(true)
+    setDeleteError('')
+
+    try {
+      await apiRequest('/api/account/me', { method: 'DELETE', getToken })
+      await signOut({ redirectUrl: '/' })
+    } catch (err) {
+      setDeleteError(err.message)
+      setDeleting(false)
+    }
+  }
+
   return (
     <Layout>
       <div className="settings-header">
@@ -91,6 +115,48 @@ function AccountSettings() {
 
       <div className="settings-panel">
         <UserProfile />
+      </div>
+
+      <div className="dashboard-card" style={{ marginTop: '1.5rem', borderColor: '#dc2626' }}>
+        <h3 style={{ color: '#dc2626' }}>Danger zone</h3>
+        <p>Deleting your account will permanently remove your squad, athletes, events, and all data.</p>
+
+        {!showDeleteConfirm ? (
+          <button
+            type="button"
+            className="btn btn-danger"
+            style={{ marginTop: '0.75rem' }}
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            Delete account
+          </button>
+        ) : (
+          <form onSubmit={handleDeleteAccount} style={{ marginTop: '0.75rem' }}>
+            <label className="roster-form-wide">
+              Type <strong>DELETE</strong> to confirm
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                required
+              />
+            </label>
+            <div className="roster-form-actions" style={{ marginTop: '0.75rem' }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); setDeleteError('') }}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-danger" disabled={deleting}>
+                {deleting ? 'Deleting...' : 'Permanently delete account'}
+              </button>
+            </div>
+            {deleteError && <div className="roster-error" style={{ marginTop: '0.75rem' }}>{deleteError}</div>}
+          </form>
+        )}
       </div>
     </Layout>
   )

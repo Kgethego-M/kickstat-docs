@@ -40,7 +40,6 @@ function useMatchDetail() {
     } finally {
       setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityId, apiPrefix])
 
   useEffect(() => {

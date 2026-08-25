@@ -30,9 +30,28 @@ async function getOrCreateUserId(pool, clerkUserId) {
   }
 }
 
-// Get (or lazily create) the squad_id owned by a coach.
+// Get the squad_id for the logged-in user.
+// Coaches own their squad; assistants and athletes are linked to their coach's squad.
 async function getOwnedSquadId(pool, clerkUserId) {
   const userId = await getOrCreateUserId(pool, clerkUserId);
+
+  const userResult = await pool.query(
+    'SELECT role, squad_id FROM users WHERE id = $1',
+    [userId]
+  );
+
+  if (userResult.rows.length === 0) {
+    throw new Error(`User row missing for ${clerkUserId}`);
+  }
+
+  const { role, squad_id: linkedSquadId } = userResult.rows[0];
+
+  if (role === 'assistant' || role === 'athlete') {
+    if (!linkedSquadId) {
+      throw new Error(`Squad not linked for ${role} user ${clerkUserId}`);
+    }
+    return linkedSquadId;
+  }
 
   let squadResult = await pool.query('SELECT id FROM squads WHERE coach_id = $1', [userId]);
 
@@ -55,7 +74,15 @@ async function getOwnedSquadId(pool, clerkUserId) {
     throw new Error(`Could not resolve squad for user ${clerkUserId}`, { cause: new Error('squad row missing after create/retry') });
   }
 
-  return squadResult.rows[0].id;
+  const squadId = squadResult.rows[0].id;
+
+  // Keep users.squad_id in sync for coaches as well.
+  await pool.query(
+    'UPDATE users SET squad_id = $1 WHERE id = $2 AND squad_id IS DISTINCT FROM $1',
+    [squadId, userId]
+  );
+
+  return squadId;
 }
 
 // Like getOwnedSquadId, but rejects assistants. Use for roster-management

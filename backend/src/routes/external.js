@@ -52,7 +52,7 @@ async function footballDataFetch(path) {
     res = await fetch(url, {
       headers: { 'X-Auth-Token': apiKey },
     });
-  } catch (networkErr) {
+  } catch {
     const err = new Error('External API unreachable');
     err.status = 503;
     throw err;

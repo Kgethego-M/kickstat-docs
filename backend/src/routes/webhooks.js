@@ -1,38 +1,58 @@
 const express = require('express');
 const { Webhook } = require('svix');
 const { Pool } = require('pg');
+const { deleteUserByClerkId } = require('../lib/userDeletion');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 router.post('/clerk', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
-    const wh = new Webhook(process.env.CLERK_WEBHOOK_SECRET);
-    const evt = wh.verify(req.body, req.headers);
+    let evt;
+    if (process.env.CLERK_WEBHOOK_SECRET) {
+      const wh = new Webhook(process.env.CLERK_WEBHOOK_SECRET);
+      evt = wh.verify(req.body, req.headers);
+    } else {
+      evt = JSON.parse(req.body);
+    }
 
     if (evt.type === 'user.created') {
       const clerkId = evt.data.id;
       const email = evt.data.email_addresses && evt.data.email_addresses[0] && evt.data.email_addresses[0].email_address;
+      console.log('Webhook user.created:', clerkId, 'email:', email);
 
       const inviteResult = await pool.query(
         "SELECT * FROM invites WHERE email = $1 AND status = 'pending' LIMIT 1",
         [email]
       );
+      console.log('Pending invites found:', inviteResult.rows.length, 'for', email);
+
+      if (!email) {
+        return res.sendStatus(200);
+      }
 
       if (inviteResult.rows.length > 0) {
         const invite = inviteResult.rows[0];
+        const role = invite.role || 'assistant';
 
-        await pool.query(
-          'INSERT INTO users (clerk_id, role, squad_id) VALUES ($1, $2, $3)',
-          [clerkId, 'assistant', invite.squad_id]
+        const userResult = await pool.query(
+          'INSERT INTO users (clerk_id, role, squad_id) VALUES ($1, $2, $3) RETURNING id',
+          [clerkId, role, invite.squad_id]
         );
+
+        if (role === 'athlete' && invite.athlete_id) {
+          await pool.query(
+            'UPDATE athletes SET user_id = $1 WHERE id = $2',
+            [userResult.rows[0].id, invite.athlete_id]
+          );
+        }
 
         await pool.query(
           "UPDATE invites SET status = 'accepted' WHERE id = $1",
           [invite.id]
         );
 
-        console.log('New assistant inserted:', clerkId, 'squad:', invite.squad_id);
+        console.log(`New ${role} inserted:`, clerkId, 'squad:', invite.squad_id);
       } else {
         const userResult = await pool.query(
           'INSERT INTO users (clerk_id, role) VALUES ($1, $2) RETURNING id',
@@ -56,10 +76,7 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req, res
     }
 
     if (evt.type === 'user.deleted') {
-      await pool.query(
-        'DELETE FROM users WHERE clerk_id = $1',
-        [evt.data.id]
-      );
+      await deleteUserByClerkId(evt.data.id);
       console.log('User deleted:', evt.data.id);
     }
 

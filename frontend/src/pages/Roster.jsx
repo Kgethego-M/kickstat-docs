@@ -11,17 +11,31 @@ const emptyForm = {
   squad_number: '',
   date_of_birth: '',
   contact_info: '',
+  email: '',
 }
 
 function Roster() {
   const { getToken } = useAuth()
   const [athletes, setAthletes] = useState([])
+  const [role, setRole] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [inviteLink, setInviteLink] = useState(null)
+
+  const isCoach = role === 'coach'
+
+  const loadAccount = useCallback(async () => {
+    try {
+      const me = await apiRequest('/api/account/me', { getToken })
+      setRole(me.role)
+    } catch {
+      setRole('coach')
+    }
+  }, [getToken])
 
   const loadAthletes = useCallback(async () => {
     setLoading(true)
@@ -36,14 +50,15 @@ function Roster() {
     }
   }, [getToken])
 
-useEffect(() => {
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  loadAthletes()
-}, [loadAthletes])
+  useEffect(() => {
+    loadAccount()
+    loadAthletes()
+  }, [loadAccount, loadAthletes])
 
   function openAddForm() {
     setForm(emptyForm)
     setEditingId(null)
+    setInviteLink(null)
     setFormOpen(true)
   }
 
@@ -54,8 +69,10 @@ useEffect(() => {
       squad_number: athlete.squad_number ?? '',
       date_of_birth: athlete.date_of_birth ? athlete.date_of_birth.slice(0, 10) : '',
       contact_info: athlete.contact_info || '',
+      email: athlete.email || '',
     })
     setEditingId(athlete.id)
+    setInviteLink(null)
     setFormOpen(true)
   }
 
@@ -74,6 +91,7 @@ useEffect(() => {
 
     setSaving(true)
     setError('')
+    setInviteLink(null)
 
     const payload = {
       name: form.name.trim(),
@@ -81,6 +99,7 @@ useEffect(() => {
       squad_number: form.squad_number ? Number(form.squad_number) : null,
       date_of_birth: form.date_of_birth || null,
       contact_info: form.contact_info.trim() || null,
+      email: form.email.trim() || null,
     }
 
     try {
@@ -91,11 +110,14 @@ useEffect(() => {
           getToken,
         })
       } else {
-        await apiRequest('/api/athletes', {
+        const created = await apiRequest('/api/athletes', {
           method: 'POST',
           body: payload,
           getToken,
         })
+        if (created.inviteLink) {
+          setInviteLink(created.inviteLink)
+        }
       }
       closeForm()
       await loadAthletes()
@@ -123,14 +145,16 @@ useEffect(() => {
           <span className="dashboard-eyebrow">Squad</span>
           <h1>Roster</h1>
         </div>
-        <button className="btn btn-gold" onClick={openAddForm}>
-          Add athlete
-        </button>
+        {isCoach && (
+          <button className="btn btn-gold" onClick={openAddForm}>
+            Add athlete
+          </button>
+        )}
       </div>
 
       {error && <div className="roster-error">{error}</div>}
 
-      {formOpen && (
+      {formOpen && isCoach && (
         <form className="roster-form" onSubmit={handleSubmit}>
           <h3>{editingId ? 'Edit athlete' : 'Add athlete'}</h3>
           <div className="roster-form-grid">
@@ -178,6 +202,15 @@ useEffect(() => {
                 placeholder="Phone or email"
               />
             </label>
+            <label className="roster-form-wide">
+              Login email (optional invite)
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="athlete@example.com"
+              />
+            </label>
           </div>
           <div className="roster-form-actions">
             <button type="button" className="btn btn-ghost" onClick={closeForm}>
@@ -190,11 +223,18 @@ useEffect(() => {
         </form>
       )}
 
+      {inviteLink && (
+        <div className="dashboard-card" style={{ marginTop: '1rem' }}>
+          <p>Invite created! Share this link with the athlete:</p>
+          <code>{inviteLink}</code>
+        </div>
+      )}
+
       {loading ? (
         <p className="roster-status">Loading roster...</p>
       ) : athletes.length === 0 ? (
         <div className="roster-empty">
-          <p>No athletes yet. Add your first athlete to start building your squad.</p>
+          <p>No athletes yet. {isCoach ? 'Add your first athlete to start building your squad.' : 'Your coach will add athletes here.'}</p>
         </div>
       ) : (
         <div className="roster-grid">
@@ -209,14 +249,16 @@ useEffect(() => {
                   {athlete.position && <span className="athlete-position">{athlete.position}</span>}
                 </div>
               </Link>
-              <div className="athlete-actions">
-                <button className="btn btn-ghost" onClick={() => openEditForm(athlete)}>
-                  Edit
-                </button>
-                <button className="btn btn-danger" onClick={() => handleDelete(athlete.id)}>
-                  Remove
-                </button>
-              </div>
+              {isCoach && (
+                <div className="athlete-actions">
+                  <button className="btn btn-ghost" onClick={() => openEditForm(athlete)}>
+                    Edit
+                  </button>
+                  <button className="btn btn-danger" onClick={() => handleDelete(athlete.id)}>
+                    Remove
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
