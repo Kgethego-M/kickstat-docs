@@ -62,4 +62,53 @@ to a `SELECT` if their `INSERT` loses the race.
   `users.squad_id`, populated when they accept an **invite** created by the
   squad's coach.
 
+ ---
+
+```mermaid
+flowchart TD
+  Browser["Coach / assistant<br/>browser"]
+  Frontend["React frontend<br/>(Vite)"]
+  Clerk["Clerk<br/>(hosted auth)"]
+  Backend["Express API<br/>(Node.js)"]
+  DB["PostgreSQL"]
+
+  Browser --> Frontend
+  Frontend -- "session token" --> Clerk
+  Frontend -- "HTTPS/JSON + token" --> Backend
+  Backend -- "verify token" --> Clerk
+  Clerk -- "user.created/deleted webhook" --> Backend
+  Backend -- SQL --> DB
+```
+
+Then, replace the existing "## Request flow" numbered list with the same
+information as a sequence diagram (keep the numbered list too if you'd
+rather have both — the diagram makes the ordering and the two entry
+points for user-creation obvious at a glance, which is easy to miss
+reading prose):
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant C as Clerk
+  participant A as Backend API
+  participant D as PostgreSQL
+
+  B->>C: Sign in
+  C-->>B: Session token
+  B->>A: API request + token
+  A->>C: Verify token
+  C-->>A: Clerk user ID
+  A->>D: Resolve or self-heal users/squads row
+  D-->>A: Row data
+  A->>D: Query/mutate
+  D-->>A: Result
+  A-->>B: JSON response
+
+  Note over C,A: Separately, Clerk also calls the<br/>user.created/deleted webhook directly —<br/>not shown here, see below
+```
+
+---
+
+
+
 See [Data Model](./data-model.md) for the full schema.
