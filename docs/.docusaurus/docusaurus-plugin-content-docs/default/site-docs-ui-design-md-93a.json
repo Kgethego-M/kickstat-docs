@@ -1,0 +1,26 @@
+{
+  "id": "ui-design",
+  "title": "UI Design",
+  "description": "Design Principles",
+  "source": "@site/docs/ui-design.md",
+  "sourceDirName": ".",
+  "slug": "/ui-design",
+  "permalink": "/sport-coaching-tool/ui-design",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 6,
+  "frontMatter": {
+    "sidebar_position": 6
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Database Schema",
+    "permalink": "/sport-coaching-tool/database-schema"
+  },
+  "next": {
+    "title": "API Reference",
+    "permalink": "/sport-coaching-tool/api-reference"
+  }
+}

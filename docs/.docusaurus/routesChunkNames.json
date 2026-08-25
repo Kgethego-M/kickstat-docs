@@ -1,0 +1,43 @@
+{
+  "/sport-coaching-tool/-bd8": {
+    "__comp": "5e95c892",
+    "__context": {
+      "plugin": "aba21aa0"
+    }
+  },
+  "/sport-coaching-tool/-096": {
+    "__comp": "a7bd4aaa",
+    "__props": "1eb20197"
+  },
+  "/sport-coaching-tool/-12a": {
+    "__comp": "a94703ab"
+  },
+  "/sport-coaching-tool/api-reference-122": {
+    "__comp": "17896441",
+    "content": "964ae018"
+  },
+  "/sport-coaching-tool/architecture-ab3": {
+    "__comp": "17896441",
+    "content": "5281b7a2"
+  },
+  "/sport-coaching-tool/database-schema-148": {
+    "__comp": "17896441",
+    "content": "dbec3532"
+  },
+  "/sport-coaching-tool/getting-started-db9": {
+    "__comp": "17896441",
+    "content": "d589d3a7"
+  },
+  "/sport-coaching-tool/roadmap-5d8": {
+    "__comp": "17896441",
+    "content": "0dffb83e"
+  },
+  "/sport-coaching-tool/ui-design-42b": {
+    "__comp": "17896441",
+    "content": "93ab63f0"
+  },
+  "/sport-coaching-tool/-33c": {
+    "__comp": "17896441",
+    "content": "0e384e19"
+  }
+}

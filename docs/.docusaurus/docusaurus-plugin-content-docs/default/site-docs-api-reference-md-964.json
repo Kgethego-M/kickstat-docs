@@ -1,0 +1,26 @@
+{
+  "id": "api-reference",
+  "title": "API Reference",
+  "description": "All endpoints are prefixed with /api. Every endpoint (except /api/webhooks) requires a valid Clerk JWT in the Authorization: Bearer  header.",
+  "source": "@site/docs/api-reference.md",
+  "sourceDirName": ".",
+  "slug": "/api-reference",
+  "permalink": "/sport-coaching-tool/api-reference",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 5,
+  "frontMatter": {
+    "sidebar_position": 5
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "UI Design",
+    "permalink": "/sport-coaching-tool/ui-design"
+  },
+  "next": {
+    "title": "Getting Started",
+    "permalink": "/sport-coaching-tool/getting-started"
+  }
+}

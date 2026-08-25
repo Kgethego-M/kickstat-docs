@@ -7,7 +7,7 @@ export default defineConfig({
     fileParallelism: false,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html', 'json-summary'],
+      reporter: ['text', 'html', 'json-summary', 'lcov'],
       exclude: [
         'migrations/**',
         '**/*.test.js',

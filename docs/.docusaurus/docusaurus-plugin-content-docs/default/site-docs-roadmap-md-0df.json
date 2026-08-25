@@ -1,0 +1,22 @@
+{
+  "id": "roadmap",
+  "title": "Roadmap",
+  "description": "What's Built (Sprint 1 — Aug 2026)",
+  "source": "@site/docs/roadmap.md",
+  "sourceDirName": ".",
+  "slug": "/roadmap",
+  "permalink": "/sport-coaching-tool/roadmap",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 7,
+  "frontMatter": {
+    "sidebar_position": 7
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Getting Started",
+    "permalink": "/sport-coaching-tool/getting-started"
+  }
+}

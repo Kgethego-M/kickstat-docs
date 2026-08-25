@@ -102,5 +102,18 @@ jobs:
       - name: Run migrations
         run: npx node-pg-migrate up --no-check-order
 
-      - name: Run tests (includes migrations against the service container)
-        run: npm test
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          if [ -z "$CODECOV_TOKEN" ]; then
+            echo "CODECOV_TOKEN not set; skipping upload"
+            exit 0
+          fi
+          curl -Os https://cli.codecov.io/latest/linux/codecov
+          chmod +x codecov
+          ./codecov upload-process -t "$CODECOV_TOKEN" -f ./coverage/lcov.info
+        continue-on-error: true

@@ -1,0 +1,26 @@
+{
+  "id": "architecture",
+  "title": "System Architecture",
+  "description": "High-Level Overview",
+  "source": "@site/docs/architecture.md",
+  "sourceDirName": ".",
+  "slug": "/architecture",
+  "permalink": "/sport-coaching-tool/architecture",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Kickstat — Overview",
+    "permalink": "/sport-coaching-tool/"
+  },
+  "next": {
+    "title": "Database Schema",
+    "permalink": "/sport-coaching-tool/database-schema"
+  }
+}

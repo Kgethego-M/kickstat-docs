@@ -1,0 +1,63 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/sport-coaching-tool/",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/sport-coaching-tool/",
+          "mainDocId": "intro",
+          "docs": [
+            {
+              "id": "api-reference",
+              "path": "/sport-coaching-tool/api-reference",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "architecture",
+              "path": "/sport-coaching-tool/architecture",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "database-schema",
+              "path": "/sport-coaching-tool/database-schema",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "getting-started",
+              "path": "/sport-coaching-tool/getting-started",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "intro",
+              "path": "/sport-coaching-tool/",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "roadmap",
+              "path": "/sport-coaching-tool/roadmap",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "ui-design",
+              "path": "/sport-coaching-tool/ui-design",
+              "sidebar": "docsSidebar"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "docsSidebar": {
+              "link": {
+                "path": "/sport-coaching-tool/",
+                "label": "intro"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

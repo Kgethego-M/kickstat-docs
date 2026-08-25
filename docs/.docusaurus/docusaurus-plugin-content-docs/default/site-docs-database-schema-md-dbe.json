@@ -1,0 +1,26 @@
+{
+  "id": "database-schema",
+  "title": "Database Schema",
+  "description": "Entity Relationship Diagram",
+  "source": "@site/docs/database-schema.md",
+  "sourceDirName": ".",
+  "slug": "/database-schema",
+  "permalink": "/sport-coaching-tool/database-schema",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 4,
+  "frontMatter": {
+    "sidebar_position": 4
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "System Architecture",
+    "permalink": "/sport-coaching-tool/architecture"
+  },
+  "next": {
+    "title": "UI Design",
+    "permalink": "/sport-coaching-tool/ui-design"
+  }
+}
