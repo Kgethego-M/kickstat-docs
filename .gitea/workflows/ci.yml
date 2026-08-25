@@ -105,15 +105,18 @@ jobs:
       - name: Run tests with coverage
         run: npm run test:coverage
 
-      - name: Upload coverage to Codecov
+      - name: SonarQube scan
         env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
-          if [ -z "$CODECOV_TOKEN" ]; then
-            echo "CODECOV_TOKEN not set; skipping upload"
+          if [ -z "$SONAR_TOKEN" ] || [ -z "$SONAR_HOST_URL" ]; then
+            echo "SonarQube secrets not set; skipping scan"
             exit 0
           fi
-          curl -Os https://cli.codecov.io/latest/linux/codecov
-          chmod +x codecov
-          ./codecov upload-process -t "$CODECOV_TOKEN" -f ./coverage/lcov.info
+          docker run --rm \
+            -e SONAR_TOKEN="$SONAR_TOKEN" \
+            -e SONAR_HOST_URL="$SONAR_HOST_URL" \
+            -v "$(pwd):/usr/src" \
+            sonarsource/sonar-scanner-cli:latest
         continue-on-error: true
