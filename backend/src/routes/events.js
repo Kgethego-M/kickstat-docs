@@ -430,6 +430,28 @@ router.patch('/:id/cancel', requireAuth(), async (req, res) => {
   }
 });
 
+// DELETE /api/events/:id — permanently remove an event and its logs/fixtures
+router.delete('/:id', requireAuth(), async (req, res) => {
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const result = await pool.query(
+      'DELETE FROM events WHERE id = $1 AND squad_id = $2 RETURNING id',
+      [req.params.id, squadId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized to delete this event' });
+    }
+
+    res.sendStatus(204);
+  } catch (err) {
+    console.error('Error deleting event:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /api/events/:id/join — join an open league/tournament
 router.post('/:id/join', requireAuth(), async (req, res) => {
   try {

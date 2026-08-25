@@ -11,6 +11,113 @@ the migrations folder disagree, trust the migrations, and please update this
 page (or flag it for someone to).
 :::
 
+## Entity-relationship diagram
+
+```mermaid
+erDiagram
+  USERS ||--o| SQUADS : "owns (coach)"
+  SQUADS ||--o{ USERS : "has (assistants)"
+  SQUADS ||--o{ ATHLETES : has
+  ATHLETES ||--o| USERS : "may log in as"
+  SQUADS ||--o{ EVENTS : schedules
+  EVENTS ||--o{ EVENT_TEAMS : "joined by"
+  SQUADS ||--o{ EVENT_TEAMS : participates
+  EVENTS ||--o{ FIXTURES : contains
+  SQUADS ||--o{ FIXTURES : "plays (home)"
+  SQUADS ||--o{ FIXTURES : "plays (away)"
+  EVENTS ||--o{ LOG_ENTRIES : records
+  FIXTURES ||--o{ LOG_ENTRIES : records
+  ATHLETES ||--o{ LOG_ENTRIES : "attributed to"
+  USERS ||--o{ LOG_ENTRIES : logs
+  SQUADS ||--o{ INVITES : "invites into"
+  USERS ||--o{ INVITES : sends
+  ATHLETES ||--o| INVITES : "links existing roster row"
+
+  USERS {
+    serial id PK
+    varchar clerk_id UK
+    varchar role "coach or assistant"
+    integer squad_id FK "set for assistants"
+  }
+  SQUADS {
+    serial id PK
+    integer coach_id FK "UK — one squad per coach"
+    varchar name
+    integer min_roster_size
+    boolean onboarded
+  }
+  ATHLETES {
+    serial id PK
+    integer squad_id FK
+    varchar name
+    varchar position
+    integer squad_number
+    date date_of_birth
+    integer user_id FK "set once athlete accepts invite"
+  }
+  EVENTS {
+    serial id PK
+    integer squad_id FK
+    varchar event_type "match or training"
+    varchar format "match or league"
+    varchar status "scheduled, live, completed, cancelled"
+    timestamp event_date
+    integer required_teams
+    integer created_by FK
+  }
+  EVENT_TEAMS {
+    serial id PK
+    integer event_id FK
+    integer squad_id FK
+    varchar role
+    integer seed_order
+  }
+  FIXTURES {
+    serial id PK
+    integer event_id FK
+    integer home_squad_id FK
+    integer away_squad_id FK
+    varchar status
+    timestamp event_date
+  }
+  LOG_ENTRIES {
+    serial id PK
+    integer event_id FK
+    integer fixture_id FK "null for simple events"
+    integer athlete_id FK "null = opponent action"
+    varchar action_type
+    integer value
+    integer minute
+    integer logged_by FK
+    timestamp deleted_at "soft delete = undo"
+  }
+  INVITES {
+    serial id PK
+    varchar email
+    integer squad_id FK
+    integer invited_by FK
+    varchar token UK
+    varchar status "pending or accepted"
+    varchar role "assistant or athlete"
+    integer athlete_id FK "only for role=athlete"
+  }
+```
+
+Two relationships worth calling out since they're easy to misread from
+the diagram alone:
+
+- **`SQUADS ||--o{ FIXTURES`** appears twice (home and away) — a fixture
+  always references two different squads, both via the same
+  `squads.id` foreign key pattern, just in two separate columns
+  (`home_squad_id`, `away_squad_id`).
+- **`ATHLETES ||--o| INVITES`** is optional and only set when
+  `invites.role = 'athlete'` — it links an invite to an *existing*
+  roster row (so accepting it attaches login access to that athlete's
+  existing stats history) rather than creating a disconnected account.
+  Assistant invites don't use this field at all.
+
+---
+
 ## Tables
 
 ### `users`

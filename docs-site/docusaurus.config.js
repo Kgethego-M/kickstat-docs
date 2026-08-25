@@ -45,6 +45,11 @@ const config = {
     locales: ['en'],
   },
 
+  markdown: {
+    mermaid: true,
+  },
+  themes: ['@docusaurus/theme-mermaid'],
+
   presets: [
     [
       'classic',
@@ -102,8 +107,17 @@ const config = {
             title: 'Docs',
             items: [
               {label: 'Overview', to: '/'},
+              {label: 'Product', to: '/product/overview'},
               {label: 'Getting Started', to: '/getting-started/backend'},
               {label: 'Architecture', to: '/architecture/overview'},
+            ],
+          },
+          {
+            title: 'Planning',
+            items: [
+              {label: 'Project Plan', to: '/planning/project-plan'},
+              {label: 'Sprint Backlogs', to: '/planning/sprint-backlogs'},
+              {label: 'Meetings', to: '/meetings/overview'},
             ],
           },
           {

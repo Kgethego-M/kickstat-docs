@@ -1,0 +1,8 @@
+{
+  "label": "Diagrams",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "4+1 architectural view diagrams for Kickstat."
+  }
+}

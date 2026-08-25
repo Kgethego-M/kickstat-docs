@@ -1,0 +1,8 @@
+{
+  "label": "Product",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "description": "Product vision, user stories, acceptance tests, and feature rationale for Kickstat."
+  }
+}
