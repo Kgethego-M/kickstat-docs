@@ -159,4 +159,9 @@ router.get('/standings', requireAuth(), async (req, res) => {
   }
 });
 
+function resetCache() {
+  cache.clear();
+}
+
 module.exports = router;
+module.exports.resetCache = resetCache;
