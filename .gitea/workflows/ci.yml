@@ -77,22 +77,20 @@ jobs:
       - name: Wait for Postgres
         run: |
           node -e "
-          const net = require('net');
-          const tryConnect = () => new Promise((resolve) => {
-            const socket = net.connect(5432, 'postgres', () => {
-              socket.end();
-              resolve(true);
-            });
-            socket.on('error', () => resolve(false));
-          });
+          const { Client } = require('pg');
           (async () => {
             for (let i = 0; i < 30; i++) {
-              if (await tryConnect()) {
+              const client = new Client({ connectionString: process.env.DATABASE_URL });
+              try {
+                await client.connect();
+                await client.query('SELECT 1');
+                await client.end();
                 console.log('Postgres is ready');
                 process.exit(0);
+              } catch (err) {
+                console.log('Waiting for Postgres...', err.message);
+                await new Promise(r => setTimeout(r, 1000));
               }
-              console.log('Waiting for Postgres...');
-              await new Promise(r => setTimeout(r, 1000));
             }
             console.error('Postgres did not become ready in time');
             process.exit(1);
