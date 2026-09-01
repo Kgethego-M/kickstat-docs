@@ -68,8 +68,8 @@ jobs:
             -e POSTGRES_DB=sport_coaching_test \
             -p 5432:5432 postgres:16
 
-          HOST_IP=$(ip route | awk '/default/ {print $3}')
-          echo "Using host IP: $HOST_IP"
+          HOST_IP=$(docker inspect pgci --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+          echo "Using Postgres container IP: $HOST_IP"
           export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
 
           node -e "
@@ -95,13 +95,13 @@ jobs:
 
       - name: Run migrations
         run: |
-          HOST_IP=$(ip route | awk '/default/ {print $3}')
+          HOST_IP=$(docker inspect pgci --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
           export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
           npx node-pg-migrate up --no-check-order
 
       - name: Run tests with coverage
         run: |
-          HOST_IP=$(ip route | awk '/default/ {print $3}')
+          HOST_IP=$(docker inspect pgci --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
           export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
           npm run test:coverage
 
