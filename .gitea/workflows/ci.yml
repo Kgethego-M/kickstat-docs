@@ -39,24 +39,7 @@ jobs:
     defaults:
       run:
         working-directory: ./backend
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: sport_coaching_test
-          POSTGRES_HOST_AUTH_METHOD: trust
-        ports:
-          - 5432:5432
-        options: >-
-          --tmpfs /var/lib/postgresql/data
-          --health-cmd="pg_isready -U test_user"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
     env:
-      DATABASE_URL: postgresql://test_user:test_password@postgres:5432/sport_coaching_test
       NODE_ENV: test
 
     steps:
@@ -75,6 +58,21 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Start Postgres
+        run: |
+          docker rm -f pgci || true
+          docker run -d --name pgci \
+            -e POSTGRES_USER=test_user \
+            -e POSTGRES_PASSWORD=test_password \
+            -e POSTGRES_DB=sport_coaching_test \
+            -p 5432:5432 postgres:16
+
+      - name: Set DATABASE_URL
+        run: |
+          HOST_IP=$(ip route | awk '/default/ {print $3}')
+          echo "Using host IP: $HOST_IP"
+          echo "DATABASE_URL=postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test" >> "$GITHUB_ENV"
 
       - name: Wait for Postgres
         run: |
