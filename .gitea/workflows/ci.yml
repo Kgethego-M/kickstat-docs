@@ -59,7 +59,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Start Postgres
+      - name: Start and wait for Postgres
         run: |
           docker rm -f pgci || true
           docker run -d --name pgci \
@@ -68,20 +68,16 @@ jobs:
             -e POSTGRES_DB=sport_coaching_test \
             -p 5432:5432 postgres:16
 
-      - name: Set DATABASE_URL
-        run: |
           HOST_IP=$(ip route | awk '/default/ {print $3}')
           echo "Using host IP: $HOST_IP"
-          echo "DATABASE_URL=postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test" >> "$GITHUB_ENV"
+          export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
 
-      - name: Wait for Postgres
-        run: |
           node -e "
           const { Client } = require('pg');
           (async () => {
             for (let i = 0; i < 30; i++) {
-              const client = new Client({ connectionString: process.env.DATABASE_URL });
               try {
+                const client = new Client({ connectionString: process.env.DATABASE_URL });
                 await client.connect();
                 await client.query('SELECT 1');
                 await client.end();
@@ -98,10 +94,16 @@ jobs:
           "
 
       - name: Run migrations
-        run: npx node-pg-migrate up --no-check-order
+        run: |
+          HOST_IP=$(ip route | awk '/default/ {print $3}')
+          export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
+          npx node-pg-migrate up --no-check-order
 
       - name: Run tests with coverage
-        run: npm run test:coverage
+        run: |
+          HOST_IP=$(ip route | awk '/default/ {print $3}')
+          export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
+          npm run test:coverage
 
       - name: SonarQube scan
         env:
