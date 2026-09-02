@@ -3,7 +3,6 @@
 A full-stack web application for sports coaches and assistants to manage squads, schedule events, log live match data, and run multi-team leagues and tournaments.
 
 ![CI](https://sdpm.ms.wits.ac.za/bug-off/sport-coaching-tool/actions/workflows/ci.yml/badge.svg)
-![Coverage](http://92.4.144.104:9000/api/project_badges/measure?project=bug-off_sport-coaching-tool&metric=coverage)
 
 ## Features
 
