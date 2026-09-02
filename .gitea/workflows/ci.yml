@@ -105,6 +105,14 @@ jobs:
           export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
           npm run test:coverage
 
+      - name: Upload coverage report
+        if: always()
+        uses: https://github.com/christopherHX/gitea-upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage
+          if-no-files-found: error
+
       - name: Test SonarQube reachability
         run: curl -v http://92.4.144.104/api/server/version || true
 
