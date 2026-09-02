@@ -116,6 +116,17 @@ report also prints a summary in the terminal.
 The latest verified local baseline is **57 passing integration tests** with
 **76.39% statement coverage**.
 
+## Live coverage dashboard
+
+The latest backend coverage report is published automatically after every
+successful CI test run:
+
+[Open the Kickstat coverage dashboard](https://kickstat-coverage.netlify.app)
+
+The dashboard shows the current overall percentage and file-by-file coverage.
+It is updated after a push only when the backend tests and coverage generation
+succeed.
+
 ## Continuous integration evidence
 
 Every push and pull request triggers the workflow in

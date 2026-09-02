@@ -113,6 +113,17 @@ jobs:
           path: backend/coverage
           if-no-files-found: error
 
+      - name: Publish coverage dashboard
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_COVERAGE_SITE_ID: ${{ secrets.NETLIFY_COVERAGE_SITE_ID }}
+        run: |
+          npx --yes netlify-cli deploy \
+            --dir=coverage \
+            --prod \
+            --site="$NETLIFY_COVERAGE_SITE_ID" \
+            --auth="$NETLIFY_AUTH_TOKEN"
+
       - name: Test SonarQube reachability
         run: curl -v http://92.4.144.104/api/server/version || true
 
