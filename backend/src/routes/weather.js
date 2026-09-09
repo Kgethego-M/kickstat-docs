@@ -72,7 +72,14 @@ async function geocodeLocation(location) {
     location
   )}&count=1`;
 
-  const res = await fetch(url);
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    const serviceErr = new Error('Geocoding service unavailable');
+    serviceErr.status = 503;
+    throw serviceErr;
+  }
   if (!res.ok) {
     const err = new Error('Geocoding service unavailable');
     err.status = 503;
@@ -108,7 +115,14 @@ async function fetchWeather(latitude, longitude) {
     `&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max` +
     `&forecast_days=3&timezone=auto`;
 
-  const res = await fetch(url);
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    const serviceErr = new Error('Weather service unavailable');
+    serviceErr.status = 503;
+    throw serviceErr;
+  }
   if (!res.ok) {
     const err = new Error('Weather service unavailable');
     err.status = 503;
