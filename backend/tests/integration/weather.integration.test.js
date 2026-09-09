@@ -27,19 +27,23 @@ afterAll(async () => {
 })
 
 describe('US18 — venue weather forecast', () => {
-  test('AC: a real venue name returns current weather from a public weather API', async () => {
-    const res = await request(app)
-      .get('/api/weather')
-      .query({ location: 'Johannesburg' })
-      .set('x-test-clerk-user-id', 'test_clerk_user')
+  test(
+    'AC: a real venue name returns current weather from a public weather API',
+    async () => {
+      const res = await request(app)
+        .get('/api/weather')
+        .query({ location: 'Johannesburg' })
+        .set('x-test-clerk-user-id', 'test_clerk_user')
 
-    expect(res.status).toBe(200)
-    expect(res.body.resolvedLocation).toMatch(/Johannesburg/i)
-    expect(typeof res.body.current.temperatureC).toBe('number')
-    expect(typeof res.body.current.description).toBe('string')
-    expect(Array.isArray(res.body.daily)).toBe(true)
-    expect(res.body.daily.length).toBeGreaterThan(0)
-  })
+      expect(res.status).toBe(200)
+      expect(res.body.resolvedLocation).toMatch(/Johannesburg/i)
+      expect(typeof res.body.current.temperatureC).toBe('number')
+      expect(typeof res.body.current.description).toBe('string')
+      expect(Array.isArray(res.body.daily)).toBe(true)
+      expect(res.body.daily.length).toBeGreaterThan(0)
+    },
+    15000
+  )
 
   test('rejects a request with no location', async () => {
     const res = await request(app)
