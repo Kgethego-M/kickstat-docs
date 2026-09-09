@@ -1,0 +1,45 @@
+const { Pool } = require('pg')
+
+// Prefer TEST_DATABASE_URL if a dev has set one explicitly. Otherwise, fall
+// back to DATABASE_URL — which CI already sets correctly to the Postgres
+// service container's connection string, so this makes the same setup.js
+// work in both CI and local dev without any CI-specific configuration.
+// Only if neither is set at all does this fall back to the current local
+// PostgreSQL user, so developers do not depend on another person's account.
+const localTestDatabaseUser = encodeURIComponent(
+  process.env.PGUSER || process.env.USER || 'postgres'
+)
+const localTestDatabaseUrl = `postgresql://${localTestDatabaseUser}@localhost:5432/sportcoach_test`
+
+const TEST_DATABASE_URL =
+  process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || localTestDatabaseUrl
+
+// Route files read process.env.DATABASE_URL at import time to build their
+// own Pool — setting it here (before any route file is imported) redirects
+// them at the test database instead of whatever it was pointed at before.
+process.env.DATABASE_URL = TEST_DATABASE_URL
+
+const pool = new Pool({ connectionString: TEST_DATABASE_URL })
+
+async function resetDatabase() {
+  await pool.query(
+    'TRUNCATE log_entries, events, invites, athletes, squads, users RESTART IDENTITY CASCADE'
+  )
+}
+
+async function seedCoach(clerkId = 'test_clerk_user') {
+  const userResult = await pool.query(
+    "INSERT INTO users (clerk_id, role) VALUES ($1, 'coach') RETURNING id",
+    [clerkId]
+  )
+  const userId = userResult.rows[0].id
+
+  const squadResult = await pool.query(
+    "INSERT INTO squads (coach_id, name) VALUES ($1, 'Test Squad') RETURNING id",
+    [userId]
+  )
+
+  return { userId, squadId: squadResult.rows[0].id }
+}
+
+module.exports = { pool, resetDatabase, seedCoach }

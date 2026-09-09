@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend-ci:
+    name: Frontend Lint & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  backend-ci:
+    name: Backend Lint & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    env:
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Start and wait for Postgres
+        run: |
+          docker rm -f pgci || true
+          docker run -d --name pgci \
+            -e POSTGRES_USER=test_user \
+            -e POSTGRES_PASSWORD=test_password \
+            -e POSTGRES_DB=sport_coaching_test \
+            -p 5432:5432 postgres:16
+
+          HOST_IP=$(docker inspect pgci --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+          echo "Using Postgres container IP: $HOST_IP"
+          export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
+
+          node -e "
+          const { Client } = require('pg');
+          (async () => {
+            for (let i = 0; i < 30; i++) {
+              try {
+                const client = new Client({ connectionString: process.env.DATABASE_URL });
+                await client.connect();
+                await client.query('SELECT 1');
+                await client.end();
+                console.log('Postgres is ready');
+                process.exit(0);
+              } catch (err) {
+                console.log('Waiting for Postgres...', err.message);
+                await new Promise(r => setTimeout(r, 1000));
+              }
+            }
+            console.error('Postgres did not become ready in time');
+            process.exit(1);
+          })();
+          "
+
+      - name: Run migrations
+        run: |
+          HOST_IP=$(docker inspect pgci --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+          export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
+          npx node-pg-migrate up --no-check-order
+
+      - name: Run tests with coverage
+        run: |
+          HOST_IP=$(docker inspect pgci --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+          export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
+          npm run test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: https://github.com/christopherHX/gitea-upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage
+          if-no-files-found: error
+
+      - name: Publish coverage dashboard
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_COVERAGE_SITE_ID: ${{ secrets.NETLIFY_COVERAGE_SITE_ID }}
+        run: |
+          npx --yes netlify-cli deploy \
+            --dir=coverage \
+            --prod \
+            --site="$NETLIFY_COVERAGE_SITE_ID" \
+            --auth="$NETLIFY_AUTH_TOKEN"
+

@@ -1,0 +1,11 @@
+node_modules
+.env
+.DS_Store
+coverage
+*Zone.Identifier
+
+# Old docs build output (new docs live in docs-site/)
+/docs/
+
+# Local Netlify folder
+.netlify

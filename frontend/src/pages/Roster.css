@@ -1,0 +1,152 @@
+.roster-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.roster-error {
+  background: rgba(179, 59, 59, 0.08);
+  border: 1px solid rgba(179, 59, 59, 0.3);
+  color: #b33b3b;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.roster-status {
+  font-size: 14px;
+  padding: 20px 0;
+}
+
+.roster-empty {
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius);
+  padding: 48px 24px;
+  text-align: center;
+  background: var(--color-chalk);
+}
+
+.roster-form {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-chalk);
+  padding: 24px;
+  margin-bottom: 28px;
+}
+
+.roster-form h3 {
+  margin-bottom: 16px;
+}
+
+.roster-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.roster-form-wide {
+  grid-column: 1 / -1;
+}
+
+.roster-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+}
+
+.roster-form input {
+  font-family: var(--font-body);
+  font-size: 15px;
+  padding: 9px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-pitch);
+  color: var(--color-ink);
+}
+
+.roster-form input:focus {
+  outline: none;
+  border-color: var(--color-sky);
+  box-shadow: 0 0 0 3px var(--color-sky-soft);
+}
+
+.roster-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.athlete-card {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: 20px;
+  background: var(--color-pitch);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.athlete-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-gold);
+}
+
+.athlete-card-main {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.athlete-card-main:hover {
+  text-decoration: none;
+}
+
+.athlete-number {
+  font-family: var(--font-display);
+  font-size: 42px;
+  font-weight: 700;
+  color: var(--color-gold);
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.athlete-info h3 {
+  margin-bottom: 4px;
+}
+
+.athlete-position {
+  display: inline-block;
+  font-size: 13px;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-sky);
+  border-bottom: 2px solid var(--color-sky);
+  padding-bottom: 2px;
+}
+
+.athlete-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.roster-added-confirmation p {
+  margin-bottom: 4px;
+}
