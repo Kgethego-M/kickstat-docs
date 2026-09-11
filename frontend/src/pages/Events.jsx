@@ -5,6 +5,7 @@ import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
 import WeatherWidget from '../components/WeatherWidget'
 import './Events.css'
+import EventsCalendar from '../components/EventsCalendar'
 
 const LEAGUES = [
   { code: 'PL',  name: 'Premier League' },
@@ -72,6 +73,7 @@ function Events() {
   const [proStandings, setProStandings] = useState([])
   const [proLoading, setProLoading] = useState(false)
   const [proError, setProError] = useState('')
+  const [viewMode, setViewMode] = useState('grid') // 'grid' | 'calendar'
 
   const loadEvents = useCallback(async () => {
     setLoading(true)
@@ -226,6 +228,27 @@ function Events() {
         </button>
       </div>
 
+      {activeTab === 'mine' && (
+        <div className="events-view-toggle">
+          <button
+            type="button"
+            className={`events-view-btn${viewMode === 'grid' ? ' events-view-btn-active' : ''}`}
+            onClick={() => setViewMode('grid')}
+            aria-pressed={viewMode === 'grid'}
+          >
+            Grid
+          </button>
+          <button
+            type="button"
+            className={`events-view-btn${viewMode === 'calendar' ? ' events-view-btn-active' : ''}`}
+            onClick={() => setViewMode('calendar')}
+            aria-pressed={viewMode === 'calendar'}
+          >
+            Calendar
+          </button>
+        </div>
+      )}
+
       {activeTab === 'mine' && error && <div className="roster-error">{error}</div>}
 
       {activeTab === 'mine' && formOpen && (
@@ -337,6 +360,8 @@ function Events() {
           <div className="roster-empty">
             <p>No events yet. Schedule your first match or training session.</p>
           </div>
+        ) : viewMode === 'calendar' ? (
+          <EventsCalendar events={events} onSelectEvent={navigateToEvent} />
         ) : (
           <div className="events-grid">
             {events.map((event) => (
