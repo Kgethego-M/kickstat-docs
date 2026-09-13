@@ -72,7 +72,7 @@ jobs:
             -p 5432:5432 postgres:16
 
           CONTAINER_IP=$(docker inspect pgci --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
-          GATEWAY_IP=$(ip -4 route show default 2>/dev/null | awk '{print $3}')
+          GATEWAY_IP=$( (ip -4 route show default 2>/dev/null | awk '{print $3}') || true )
           echo "Postgres container IP: ${CONTAINER_IP}, host gateway: ${GATEWAY_IP}"
 
           # The job container can reach Postgres via the container IP on some
