@@ -1,4 +1,6 @@
-# Kickstat — Sport Coaching Tool
+[![codecov](https://codecov.io/gh/mmmaphefo/sport-coaching-tool/graph/badge.svg?token=jLHQL40tsX)](https://codecov.io/gh/mmmaphefo/sport-coaching-tool)
+
+ # Kickstat — Sport Coaching Tool
 
 A full-stack web application for sports coaches and assistants to manage squads, schedule events, log live match data, and run multi-team leagues and tournaments.
 

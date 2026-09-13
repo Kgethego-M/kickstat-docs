@@ -32,6 +32,9 @@ jobs:
 
       - name: Build
         run: npm run build
+      
+      - name: Run frontend tests
+        run: npm test
 
   backend-ci:
     name: Backend Lint & Test
@@ -41,6 +44,25 @@ jobs:
         working-directory: ./backend
     env:
       NODE_ENV: test
+      # The service below is reachable by its service name ("postgres") as a
+      # hostname, since Gitea Actions attaches service containers to the same
+      # job network as the runner container. No IP-detection or polling script
+      # needed — the "options" health check below already blocks the job from
+      # proceeding until Postgres is actually accepting connections.
+      DATABASE_URL: postgresql://test_user:test_password@postgres:5432/sport_coaching_test
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: sport_coaching_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout code
@@ -59,51 +81,26 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Start and wait for Postgres
-        run: |
-          docker rm -f pgci || true
-          docker run -d --name pgci \
-            -e POSTGRES_USER=test_user \
-            -e POSTGRES_PASSWORD=test_password \
-            -e POSTGRES_DB=sport_coaching_test \
-            -p 5432:5432 postgres:16
-
-          HOST_IP=$(docker inspect pgci --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
-          echo "Using Postgres container IP: $HOST_IP"
-          export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
-
-          node -e "
-          const { Client } = require('pg');
-          (async () => {
-            for (let i = 0; i < 30; i++) {
-              try {
-                const client = new Client({ connectionString: process.env.DATABASE_URL });
-                await client.connect();
-                await client.query('SELECT 1');
-                await client.end();
-                console.log('Postgres is ready');
-                process.exit(0);
-              } catch (err) {
-                console.log('Waiting for Postgres...', err.message);
-                await new Promise(r => setTimeout(r, 1000));
-              }
-            }
-            console.error('Postgres did not become ready in time');
-            process.exit(1);
-          })();
-          "
-
       - name: Run migrations
-        run: |
-          HOST_IP=$(docker inspect pgci --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
-          export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
-          npx node-pg-migrate up --no-check-order
+        run: npx node-pg-migrate up --no-check-order
 
       - name: Run tests with coverage
-        run: |
-          HOST_IP=$(docker inspect pgci --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
-          export DATABASE_URL="postgresql://test_user:test_password@${HOST_IP}:5432/sport_coaching_test"
-          npm run test:coverage
+        run: npm run test:coverage
+
+      # --- Codecov upload -----------------------------------------------------
+      # Codecov has no native Gitea integration, so this uploads against a
+      # GitHub mirror of this repo instead (see slug below). "directory"
+      # (rather than a single "files" path) is used since Vitest's coverage-v8
+      # reporter can emit more than one format (e.g. lcov.info + coverage-final.json)
+      # depending on vitest.config — pointing at the whole folder lets the
+      # action pick up whichever reports exist without needing an exact filename.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ./backend/coverage
+          slug: Mmmaphefo/sport-coaching-tool
+          fail_ci_if_error: false
 
       - name: Upload coverage report
         if: always()
@@ -117,10 +114,13 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_COVERAGE_SITE_ID: ${{ secrets.NETLIFY_COVERAGE_SITE_ID }}
+        # A broken Netlify token must not fail the whole backend job — the
+        # coverage artifact is already uploaded above. Warn instead, and the
+        # dashboard self-heals on the next run once the secrets are fixed.
         run: |
           npx --yes netlify-cli deploy \
             --dir=coverage \
             --prod \
             --site="$NETLIFY_COVERAGE_SITE_ID" \
-            --auth="$NETLIFY_AUTH_TOKEN"
-
+            --auth="$NETLIFY_AUTH_TOKEN" \
+            || echo "::warning::Coverage dashboard deploy failed — check NETLIFY_AUTH_TOKEN / NETLIFY_COVERAGE_SITE_ID secrets; dashboard not updated"

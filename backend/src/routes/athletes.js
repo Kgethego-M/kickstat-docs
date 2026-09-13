@@ -7,14 +7,22 @@ const { createInvite } = require('./invites');
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// List the logged-in coach's roster
+// List the logged-in coach's roster, flagging currently-injured athletes (US31)
 router.get('/', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
     const squadId = await getOwnedSquadId(pool, clerkUserId);
 
     const result = await pool.query(
-      'SELECT * FROM athletes WHERE squad_id = $1 ORDER BY name',
+      `SELECT a.*, EXISTS (
+         SELECT 1 FROM injuries i
+         WHERE i.athlete_id = a.id
+           AND i.cleared_at IS NULL
+           AND i.return_date >= CURRENT_DATE
+       ) AS is_injured
+       FROM athletes a
+       WHERE a.squad_id = $1
+       ORDER BY a.name`,
       [squadId]
     );
     res.json(result.rows);
@@ -70,10 +78,8 @@ router.post('/', requireAuth(), async (req, res) => {
   }
 });
 
-// GET /api/athletes/:id/stats — per-athlete summary derived from logged events (US17)
-// NOTE: "appearances" here = distinct events this athlete has a logged action in.
-// There's no separate roster/lineup-per-event table yet, so an athlete who played
-// but never had an action logged against them won't be counted as an appearance.
+// GET /api/athletes/:id/stats — per-athlete summary derived from logged events (US17),
+// now including injury history and current injury status (US29/US30/US31).
 router.get('/:id/stats', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
@@ -108,10 +114,22 @@ router.get('/:id/stats', requireAuth(), async (req, res) => {
     const redCards = logs.filter((l) => l.action_type === 'red_card').length;
     const appearances = new Set(logs.map((l) => l.event_id)).size;
 
+    const injuriesResult = await pool.query(
+      'SELECT * FROM injuries WHERE athlete_id = $1 ORDER BY date_sustained DESC',
+      [req.params.id]
+    );
+    const injuries = injuriesResult.rows;
+    const today = new Date().toISOString().slice(0, 10);
+    const currentInjury = injuries.find(
+      (i) => !i.cleared_at && i.return_date && i.return_date.toISOString().slice(0, 10) >= today
+    ) || null;
+
     res.json({
       athlete: athleteResult.rows[0],
       stats: { goals, assists, penalties, yellowCards, redCards, appearances },
       logs,
+      injuries,
+      currentInjury,
     });
   } catch (err) {
     console.error('Error fetching athlete stats:', err.message);

@@ -3,6 +3,15 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const { clerkMiddleware, requireAuth } = require('./middleware/auth');
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
+const path = require('path');
+
+// ... after existing middleware, before routes:
+if (process.env.NODE_ENV !== 'test') {
+  const swaggerDocument = YAML.load(path.join(__dirname, '..', 'openapi.yml'));
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+}
 const webhooksRouter = require('./routes/webhooks');
 const squadsRouter = require('./routes/squads');
 const athletesRouter = require('./routes/athletes');
@@ -12,6 +21,7 @@ const invitesRouter = require('./routes/invites');
 const externalRouter = require('./routes/external');
 const accountRouter = require('./routes/account');
 const weatherRouter = require('./routes/weather');
+const injuriesRouter = require('./routes/injuries');
 const { sendEventReminders } = require('./lib/reminders');
 
 const app = express();
@@ -31,6 +41,7 @@ app.use('/api/invites', invitesRouter);
 app.use('/api/external', externalRouter);
 app.use('/api/account', accountRouter);
 app.use('/api/weather', weatherRouter);
+app.use('/api/injuries', injuriesRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
