@@ -63,6 +63,12 @@ function setCached(map, key, data) {
   map.set(key, { ts: Date.now(), data });
 }
 
+function serviceUnavailable(message) {
+  const err = new Error(message);
+  err.status = 503;
+  return err;
+}
+
 async function geocodeLocation(location) {
   const key = location.trim().toLowerCase();
   const cached = getCached(geocodeCache, key, Infinity); // place coordinates don't go stale
@@ -72,14 +78,22 @@ async function geocodeLocation(location) {
     location
   )}&count=1`;
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    const err = new Error('Geocoding service unavailable');
-    err.status = 503;
-    throw err;
+  // Everything that talks to the geocoding service — the network call,
+  // the status check, and the JSON parse — is covered here. A malformed
+  // or non-JSON response (e.g. a proxy/firewall intercepting the request
+  // and returning an HTML page) is just as much a "service unavailable"
+  // situation as a dropped connection, so it should map to 503 too.
+  let data;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Geocoding service responded with status ${res.status}`);
+    }
+    data = await res.json();
+  } catch (err) {
+    throw serviceUnavailable('Geocoding service unavailable');
   }
 
-  const data = await res.json();
   const match = data.results && data.results[0];
   if (!match) {
     return null;
@@ -108,14 +122,19 @@ async function fetchWeather(latitude, longitude) {
     `&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max` +
     `&forecast_days=3&timezone=auto`;
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    const err = new Error('Weather service unavailable');
-    err.status = 503;
-    throw err;
+  // Same reasoning as geocodeLocation: network failure, a non-2xx status,
+  // and a bad/non-JSON body are all treated as the weather service being
+  // unavailable, not as an unhandled server error.
+  let data;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Weather service responded with status ${res.status}`);
+    }
+    data = await res.json();
+  } catch (err) {
+    throw serviceUnavailable('Weather service unavailable');
   }
-
-  const data = await res.json();
 
   const current = data.current_weather
     ? {
