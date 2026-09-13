@@ -7,6 +7,37 @@ const { createInvite } = require('./invites');
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+// ---------------------------------------------------------------------------
+// Season helper — seasons run Aug (month 8) through May, so a match in
+// Sep 2024 or Mar 2025 both belong to season "2024/25". A match in Jun 2025
+// (off-season) is treated as still belonging to the season that just ended,
+// "2024/25", since there's no separate "off-season" bucket for stats.
+// ---------------------------------------------------------------------------
+function getSeasonLabel(dateInput) {
+  const d = new Date(dateInput);
+  const month = d.getMonth() + 1; // 1-12
+  const year = d.getFullYear();
+  const startYear = month >= 8 ? year : year - 1;
+  const endYearShort = String((startYear + 1) % 100).padStart(2, '0');
+  return `${startYear}/${endYearShort}`;
+}
+
+// Aggregate a list of log rows into the same stat shape used everywhere else.
+function summariseLogs(logs) {
+  const goals = logs
+    .filter((l) => l.action_type === 'goal')
+    .reduce((sum, l) => sum + l.value, 0);
+  const assists = logs
+    .filter((l) => l.action_type === 'assist')
+    .reduce((sum, l) => sum + l.value, 0);
+  const penalties = logs.filter((l) => l.action_type.includes('penalty')).length;
+  const yellowCards = logs.filter((l) => l.action_type === 'yellow_card').length;
+  const redCards = logs.filter((l) => l.action_type === 'red_card').length;
+  const appearances = new Set(logs.map((l) => l.event_id)).size;
+
+  return { goals, assists, penalties, yellowCards, redCards, appearances };
+}
+
 // List the logged-in coach's roster
 router.get('/', requireAuth(), async (req, res) => {
   try {
@@ -71,6 +102,11 @@ router.post('/', requireAuth(), async (req, res) => {
 });
 
 // GET /api/athletes/:id/stats — per-athlete summary derived from logged events (US17)
+// Optional ?season=2024/25 filters everything (stats + logs) down to that season.
+// Regardless of the filter, the response always includes the full season-by-season
+// breakdown and opponent breakdown so the frontend can render trend charts and
+// season comparisons without extra round trips.
+//
 // NOTE: "appearances" here = distinct events this athlete has a logged action in.
 // There's no separate roster/lineup-per-event table yet, so an athlete who played
 // but never had an action logged against them won't be counted as an appearance.
@@ -95,23 +131,51 @@ router.get('/:id/stats', requireAuth(), async (req, res) => {
        ORDER BY e.event_date DESC`,
       [req.params.id]
     );
-    const logs = logsResult.rows;
+    const allLogs = logsResult.rows.map((l) => ({
+      ...l,
+      season: getSeasonLabel(l.event_date),
+    }));
 
-    const goals = logs
-      .filter((l) => l.action_type === 'goal')
-      .reduce((sum, l) => sum + l.value, 0);
-    const assists = logs
-      .filter((l) => l.action_type === 'assist')
-      .reduce((sum, l) => sum + l.value, 0);
-    const penalties = logs.filter((l) => l.action_type.includes('penalty')).length;
-    const yellowCards = logs.filter((l) => l.action_type === 'yellow_card').length;
-    const redCards = logs.filter((l) => l.action_type === 'red_card').length;
-    const appearances = new Set(logs.map((l) => l.event_id)).size;
+    // --- Season-by-season breakdown (always full history, for trend charts) ---
+    const seasonMap = new Map();
+    for (const log of allLogs) {
+      if (!seasonMap.has(log.season)) seasonMap.set(log.season, []);
+      seasonMap.get(log.season).push(log);
+    }
+    // Sort chronologically ascending (oldest season first) — trend charts read left-to-right
+    const seasonBreakdown = Array.from(seasonMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([season, logs]) => ({ season, ...summariseLogs(logs) }));
+
+    const seasons = seasonBreakdown.map((s) => s.season).sort().reverse(); // newest first, for a dropdown
+
+    // --- Apply the season filter (if any) to everything the rest of the response uses ---
+    const requestedSeason = (req.query.season || '').trim();
+    const logs = requestedSeason
+      ? allLogs.filter((l) => l.season === requestedSeason)
+      : allLogs;
+
+    const stats = summariseLogs(logs);
+
+    // --- Opponent comparison, scoped to whatever season is currently selected ---
+    const opponentMap = new Map();
+    for (const log of logs) {
+      const opponent = log.opponent || 'Training';
+      if (!opponentMap.has(opponent)) opponentMap.set(opponent, []);
+      opponentMap.get(opponent).push(log);
+    }
+    const opponentBreakdown = Array.from(opponentMap.entries())
+      .map(([opponent, logs]) => ({ opponent, ...summariseLogs(logs) }))
+      .sort((a, b) => b.appearances - a.appearances);
 
     res.json({
       athlete: athleteResult.rows[0],
-      stats: { goals, assists, penalties, yellowCards, redCards, appearances },
+      stats,
       logs,
+      seasons,
+      selectedSeason: requestedSeason || null,
+      seasonBreakdown,
+      opponentBreakdown,
     });
   } catch (err) {
     console.error('Error fetching athlete stats:', err.message);

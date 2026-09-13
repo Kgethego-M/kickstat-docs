@@ -6,6 +6,66 @@ import { apiRequest } from '../lib/api'
 import { formatActionType } from '../lib/actions'
 import './AthleteStats.css'
 
+// Simple, dependency-free bar chart for season trends. Renders raw SVG so we
+// don't need to add a charting library just for one trend line.
+function SeasonTrendChart({ seasonBreakdown }) {
+  if (!seasonBreakdown || seasonBreakdown.length === 0) return null
+
+  const width = 600
+  const height = 180
+  const padding = 32
+  const barGap = 12
+  const maxGoals = Math.max(...seasonBreakdown.map((s) => s.goals), 1)
+  const barWidth =
+    (width - padding * 2 - barGap * (seasonBreakdown.length - 1)) / seasonBreakdown.length
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      style={{ width: '100%', maxWidth: 600, height: 'auto' }}
+      role="img"
+      aria-label="Goals per season trend chart"
+    >
+      {seasonBreakdown.map((s, i) => {
+        const barHeight = (s.goals / maxGoals) * (height - padding * 2)
+        const x = padding + i * (barWidth + barGap)
+        const y = height - padding - barHeight
+
+        return (
+          <g key={s.season}>
+            <rect
+              x={x}
+              y={y}
+              width={barWidth}
+              height={barHeight}
+              rx={4}
+              fill="#c9a227"
+            />
+            <text
+              x={x + barWidth / 2}
+              y={y - 6}
+              textAnchor="middle"
+              fontSize="12"
+              fill="#333"
+            >
+              {s.goals}
+            </text>
+            <text
+              x={x + barWidth / 2}
+              y={height - padding + 16}
+              textAnchor="middle"
+              fontSize="11"
+              fill="#666"
+            >
+              {s.season}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
 function AthleteStats() {
   const { id } = useParams()
   const { getToken } = useAuth()
@@ -13,12 +73,14 @@ function AthleteStats() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selectedSeason, setSelectedSeason] = useState('') // '' = all time
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (season) => {
     setLoading(true)
     setError('')
     try {
-      const result = await apiRequest(`/api/athletes/${id}/stats`, { getToken })
+      const query = season ? `?season=${encodeURIComponent(season)}` : ''
+      const result = await apiRequest(`/api/athletes/${id}/stats${query}`, { getToken })
       setData(result)
     } catch (err) {
       setError(err.message)
@@ -29,9 +91,9 @@ function AthleteStats() {
   }, [id])
 
   useEffect(() => {
-    load()
+    load(selectedSeason)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
+  }, [id, selectedSeason])
 
   if (loading) {
     return (
@@ -50,7 +112,7 @@ function AthleteStats() {
     )
   }
 
-  const { athlete, stats, logs } = data
+  const { athlete, stats, logs, seasons, seasonBreakdown, opponentBreakdown } = data
 
   return (
     <Layout>
@@ -64,6 +126,24 @@ function AthleteStats() {
         </div>
         <Link to="/roster" className="btn btn-ghost">Back to roster</Link>
       </div>
+
+      {seasons.length > 0 && (
+        <div style={{ margin: '1rem 0' }}>
+          <label style={{ fontSize: '0.9rem', color: '#555', marginRight: '0.5rem' }}>
+            Season
+          </label>
+          <select
+            value={selectedSeason}
+            onChange={(e) => setSelectedSeason(e.target.value)}
+            style={{ padding: '0.4rem 0.6rem', borderRadius: 6 }}
+          >
+            <option value="">All time</option>
+            {seasons.map((season) => (
+              <option key={season} value={season}>{season}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="stats-grid">
         <div className="stats-card">
@@ -92,10 +172,49 @@ function AthleteStats() {
         </div>
       </div>
 
+      {seasonBreakdown.length > 1 && (
+        <>
+          <h3 className="live-section-heading">Goals by season</h3>
+          <SeasonTrendChart seasonBreakdown={seasonBreakdown} />
+        </>
+      )}
+
+      {opponentBreakdown.length > 0 && (
+        <>
+          <h3 className="live-section-heading">Opponent comparison</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
+                  <th style={{ padding: '0.5rem' }}>Opponent</th>
+                  <th style={{ padding: '0.5rem' }}>Apps</th>
+                  <th style={{ padding: '0.5rem' }}>Goals</th>
+                  <th style={{ padding: '0.5rem' }}>Assists</th>
+                  <th style={{ padding: '0.5rem' }}>Yellow</th>
+                  <th style={{ padding: '0.5rem' }}>Red</th>
+                </tr>
+              </thead>
+              <tbody>
+                {opponentBreakdown.map((o) => (
+                  <tr key={o.opponent} style={{ borderBottom: '1px solid #f2f2f2' }}>
+                    <td style={{ padding: '0.5rem' }}>{o.opponent}</td>
+                    <td style={{ padding: '0.5rem' }}>{o.appearances}</td>
+                    <td style={{ padding: '0.5rem' }}>{o.goals}</td>
+                    <td style={{ padding: '0.5rem' }}>{o.assists}</td>
+                    <td style={{ padding: '0.5rem' }}>{o.yellowCards}</td>
+                    <td style={{ padding: '0.5rem' }}>{o.redCards}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
       <h3 className="live-section-heading">Logged Actions</h3>
       {logs.length === 0 ? (
         <div className="roster-empty">
-          <p>No actions logged for this athlete yet.</p>
+          <p>No actions logged for this athlete{selectedSeason ? ` in ${selectedSeason}` : ' yet'}.</p>
         </div>
       ) : (
         <div className="live-timeline">
