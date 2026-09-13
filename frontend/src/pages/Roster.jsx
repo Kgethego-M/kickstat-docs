@@ -90,6 +90,28 @@ function Roster() {
       return
     }
 
+    // --- Duplicate player check ---
+    const trimmedName = form.name.trim().toLowerCase()
+    const squadNum = form.squad_number ? Number(form.squad_number) : null
+
+    const duplicate = athletes.find((a) => {
+      if (editingId && a.id === editingId) return false // skip self when editing
+      const nameMatch = a.name?.trim().toLowerCase() === trimmedName
+      const numberMatch =
+        squadNum !== null && a.squad_number !== null && a.squad_number === squadNum
+      return nameMatch || numberMatch
+    })
+
+    if (duplicate) {
+      setError(
+        duplicate.name?.trim().toLowerCase() === trimmedName
+          ? `An athlete named "${duplicate.name}" already exists on the roster.`
+          : `Squad number ${squadNum} is already assigned to ${duplicate.name}.`
+      )
+      return
+    }
+    // --- End duplicate player check ---
+
     setSaving(true)
     setError('')
     setJustAdded(null)
