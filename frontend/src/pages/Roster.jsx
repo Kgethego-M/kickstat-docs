@@ -264,7 +264,9 @@ function Roster() {
                   {athlete.squad_number != null ? athlete.squad_number : '—'}
                 </div>
                 <div className="athlete-info">
-                  <h3>{athlete.name}</h3>
+                  <h3>{athlete.name}
+                  {athlete.is_injured && <span className="injury-badge" title="Currently injured">Injured</span>}
+                  </h3>
                   {athlete.position && <span className="athlete-position">{athlete.position}</span>}
                 </div>
               </Link>
