@@ -30,3 +30,91 @@
   color: var(--color-ink-soft);
   margin-top: 4px;
 }
+
+.injury-banner {
+  background: rgba(179, 59, 59, 0.08);
+  border: 1px solid rgba(179, 59, 59, 0.3);
+  color: #7a2b2b;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.injury-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 28px;
+}
+
+.injury-form-note {
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  margin-top: 8px;
+}
+
+.injury-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.injury-card {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  background: var(--color-pitch);
+}
+
+.injury-card-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.injury-severity {
+  font-size: 10px;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.injury-severity--minor { background: #eef3ea; color: #4a7a3d; }
+.injury-severity--moderate { background: #fdf3e3; color: #a9843a; }
+.injury-severity--severe { background: rgba(179, 59, 59, 0.1); color: #b33b3b; }
+
+.injury-cleared-tag {
+  font-size: 10px;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.injury-card-meta {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.injury-basis {
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.injury-inline-btn {
+  padding: 3px 10px;
+  font-size: 11px;
+}
