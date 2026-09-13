@@ -43,21 +43,27 @@ This page contains the sprint backlogs for Kickstat. Story points follow the sca
 
 ## Sprint 2 — Events, Fixtures & Live Match Logging
 
-**Dates:** 14 April 2026 – 28 April 2026 *(planned)*  
-**Goal:** Enable coaches to schedule events, generate fixtures, and log live match actions.
+**Dates:** 26 August 2026 – 15 September 2026
+**Goal:** Enable coaches to schedule events, generate fixtures, log live match actions, and meet all Milestone 2 rubric criteria.
 
-| Story ID | Story | Task | Assignee | SP |
-|---|---|---|---|---|
-| US5 | Create event | Event form + backend route | Lindokuhle | 3 |
-| US6 | Edit/cancel event | Update/cancel endpoints + UI | Mmaphefo | 2 |
-| US13 | Start live event | Event status transition to live | Mmaphefo | 2 |
-| US14 | Log scoring actions | Goals, penalties, saves endpoints | Lindokuhle | 3 |
-| US15 | Log disciplinary actions | Yellow/red card endpoints | Lindokuhle | 2 |
-| US16 | Undo log entry | Soft-delete log entry | Mmaphefo | 2 |
-| US18 | Weather forecast | Venue geocoding + Open-Meteo integration | Kgethego | 3 |
-| US19 | League/tournament fixtures | Round-robin fixture generation | Mmaphefo | 5 |
-| US20 | Event team join | Other squads join open events | Kgethego | 3 |
-|  |  | **Total** |  | **25** |
+| Story ID | Story | Task | Assignee | SP | Status |
+|---|---|---|---|---|---|
+| US5 | Create event | Event form + backend route | Lindokuhle | 3 | Done |
+| US6 | Edit/cancel event | Update/cancel endpoints + UI | Mmaphefo | 2 | Done |
+| US6-B | Cancelled event logging block | Reject logs on cancelled events | [name] | 1 | To Do |
+| US13 | Start live event | Event status transition to live | Mmaphefo | 2 | Done |
+| US14 | Log scoring actions | Goals, penalties, saves endpoints | Lindokuhle | 3 | Done |
+| US15 | Log disciplinary actions | Yellow/red card endpoints | Lindokuhle | 2 | Done |
+| US16 | Undo log entry | Soft-delete log entry | Mmaphefo | 2 | Done |
+| US18 | Weather forecast | Venue geocoding + Open-Meteo integration | Kgethego | 3 | Done |
+| US19 | League/tournament fixtures | Round-robin fixture generation | Mmaphefo | 5 | Done |
+| US20 | Event team join | Other squads join open events | Kgethego | 3 | Done |
+| US26 | Assistant permission boundary | Backend role checks + hide UI controls | [name] | 3 | To Do |
+| T-01 | Frontend test framework | Vitest + React Testing Library setup | [name] | 3 | In Progress |
+| T-02 | API documentation | OpenAPI spec + Swagger UI | [name] | 2 | To Do |
+| D-01 | Deploy docs site | Docusaurus to Netlify/Cloudflare | [name] | 2 | To Do |
+| F-01 | User testing session | Recruit 3-5 users, document feedback | [name] | 3 | To Do |
+|  |  | **Total** |  | **40** |  |
 
 ## Sprint 3 — Statistics, Notifications & Advanced Features
 

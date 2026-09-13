@@ -3,6 +3,16 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const { clerkMiddleware, requireAuth } = require('./middleware/auth');
+
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
+const path = require('path');
+
+// ... after existing middleware, before routes:
+if (process.env.NODE_ENV !== 'test') {
+  const swaggerDocument = YAML.load(path.join(__dirname, '..', 'openapi.yml'));
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+}
 const webhooksRouter = require('./routes/webhooks');
 const squadsRouter = require('./routes/squads');
 const athletesRouter = require('./routes/athletes');
