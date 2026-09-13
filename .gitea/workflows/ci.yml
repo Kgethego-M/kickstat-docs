@@ -137,10 +137,14 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_COVERAGE_SITE_ID: ${{ secrets.NETLIFY_COVERAGE_SITE_ID }}
+        # A broken Netlify token must not fail the whole backend job — the
+        # coverage artifact is already uploaded above. Warn instead, and the
+        # dashboard self-heals on the next run once the secrets are fixed.
         run: |
           npx --yes netlify-cli deploy \
             --dir=coverage \
             --prod \
             --site="$NETLIFY_COVERAGE_SITE_ID" \
-            --auth="$NETLIFY_AUTH_TOKEN"
+            --auth="$NETLIFY_AUTH_TOKEN" \
+            || echo "::warning::Coverage dashboard deploy failed — check NETLIFY_AUTH_TOKEN / NETLIFY_COVERAGE_SITE_ID secrets; dashboard not updated"
 
