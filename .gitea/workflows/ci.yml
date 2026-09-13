@@ -125,6 +125,21 @@ jobs:
           export DATABASE_URL="postgresql://test_user:test_password@${PGHOST}:5432/sport_coaching_test"
           npm run test:coverage
 
+      # --- Codecov upload -----------------------------------------------------
+      # Codecov has no native Gitea integration, so this uploads against a
+      # GitHub mirror of this repo instead (see slug below). "directory"
+      # (rather than a single "files" path) is used since Vitest's coverage-v8
+      # reporter can emit more than one format (e.g. lcov.info + coverage-final.json)
+      # depending on vitest.config — pointing at the whole folder lets the
+      # action pick up whichever reports exist without needing an exact filename.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ./backend/coverage
+          slug: Mmmaphefo/sport-coaching-tool
+          fail_ci_if_error: false
+
       - name: Upload coverage report
         if: always()
         uses: https://github.com/christopherHX/gitea-upload-artifact@v4
@@ -147,4 +162,3 @@ jobs:
             --site="$NETLIFY_COVERAGE_SITE_ID" \
             --auth="$NETLIFY_AUTH_TOKEN" \
             || echo "::warning::Coverage dashboard deploy failed — check NETLIFY_AUTH_TOKEN / NETLIFY_COVERAGE_SITE_ID secrets; dashboard not updated"
-
