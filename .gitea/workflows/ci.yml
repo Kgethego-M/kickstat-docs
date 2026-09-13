@@ -44,6 +44,27 @@ jobs:
         working-directory: ./backend
     env:
       NODE_ENV: test
+      # The service below is reachable by its service name ("postgres") as a
+      # hostname, since Gitea Actions attaches service containers to the same
+      # job network as the runner container. No IP-detection or polling script
+      # needed — the "options" health check below already blocks the job from
+      # proceeding until Postgres is actually accepting connections.
+      DATABASE_URL: postgresql://test_user:test_password@postgres:5432/sport_coaching_test
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: sport_coaching_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout code
@@ -62,68 +83,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Start and wait for Postgres
-        run: |
-          docker rm -f pgci || true
-          docker run -d --name pgci \
-            -e POSTGRES_USER=test_user \
-            -e POSTGRES_PASSWORD=test_password \
-            -e POSTGRES_DB=sport_coaching_test \
-            -p 5432:5432 postgres:16
-
-          CONTAINER_IP=$(docker inspect pgci --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
-          GATEWAY_IP=$( (ip -4 route show default 2>/dev/null | awk '{print $3}') || true )
-          echo "Postgres container IP: ${CONTAINER_IP}, host gateway: ${GATEWAY_IP}"
-
-          # The job container can reach Postgres via the container IP on some
-          # runners and via the published host port on others — try every
-          # candidate and use whichever connects. connectionTimeoutMillis
-          # keeps unreachable candidates from blocking for minutes.
-          node -e "
-          const { Client } = require('pg');
-          const fs = require('fs');
-          const candidates = ['$CONTAINER_IP', '$GATEWAY_IP', 'localhost', '127.0.0.1'].filter(Boolean);
-          (async () => {
-            for (let i = 0; i < 90; i++) {
-              for (const host of candidates) {
-                const client = new Client({
-                  connectionString: 'postgresql://test_user:test_password@' + host + ':5432/sport_coaching_test',
-                  connectionTimeoutMillis: 2000,
-                });
-                try {
-                  await client.connect();
-                  await client.query('SELECT 1');
-                  await client.end();
-                  console.log('Postgres is ready at ' + host);
-                  try {
-                    fs.appendFileSync(process.env.GITHUB_ENV, 'PGHOST=' + host + '\n');
-                  } catch (e) {
-                    console.log('Could not persist PGHOST: ' + e.message);
-                  }
-                  process.exit(0);
-                } catch (err) {
-                  await client.end().catch(() => {});
-                  console.log('Waiting for Postgres on ' + host + ': ' + err.message);
-                }
-              }
-              await new Promise(r => setTimeout(r, 1000));
-            }
-            console.error('Postgres did not become ready in time');
-            process.exit(1);
-          })();
-          "
-
       - name: Run migrations
-        run: |
-          if [ -z "$PGHOST" ]; then PGHOST=$(ip -4 route show default 2>/dev/null | awk '{print $3}'); fi
-          export DATABASE_URL="postgresql://test_user:test_password@${PGHOST}:5432/sport_coaching_test"
-          npx node-pg-migrate up --no-check-order
+        run: npx node-pg-migrate up --no-check-order
 
       - name: Run tests with coverage
-        run: |
-          if [ -z "$PGHOST" ]; then PGHOST=$(ip -4 route show default 2>/dev/null | awk '{print $3}'); fi
-          export DATABASE_URL="postgresql://test_user:test_password@${PGHOST}:5432/sport_coaching_test"
-          npm run test:coverage
+        run: npm run test:coverage
 
       # --- Codecov upload -----------------------------------------------------
       # Codecov has no native Gitea integration, so this uploads against a
