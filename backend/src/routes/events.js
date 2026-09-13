@@ -54,6 +54,28 @@ async function getFixtureLogs(pool, fixtureId) {
   return result.rows;
 }
 
+// Returns { athleteCount, minRosterSize, meetsMinimum } for a squad, so
+// callers can block match/league creation or joining when the squad doesn't
+// have enough players to actually field a team.
+async function getRosterStatus(pool, squadId) {
+  const result = await pool.query(
+    `SELECT s.min_roster_size,
+            (SELECT COUNT(*)::int FROM athletes a WHERE a.squad_id = s.id) AS athlete_count
+     FROM squads s
+     WHERE s.id = $1`,
+    [squadId]
+  );
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error(`Squad ${squadId} not found while checking roster status`);
+  }
+  return {
+    athleteCount: row.athlete_count,
+    minRosterSize: row.min_roster_size,
+    meetsMinimum: row.athlete_count >= row.min_roster_size,
+  };
+}
+
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -274,6 +296,18 @@ router.post('/', requireAuth(), async (req, res) => {
     const userId = await getOrCreateUserId(pool, clerkUserId);
     const squadId = await getOwnedSquadId(pool, clerkUserId);
 
+    // Training sessions don't need a full squad — but a match, league, or
+    // tournament all involve this squad actually fielding a team, so they
+    // require the roster to meet the squad's configured minimum size first.
+    if (eventFormat !== 'training') {
+      const roster = await getRosterStatus(pool, squadId);
+      if (!roster.meetsMinimum) {
+        return res.status(400).json({
+          error: `Your roster needs at least ${roster.minRosterSize} athletes to schedule a ${eventFormat} (you currently have ${roster.athleteCount}).`,
+        });
+      }
+    }
+
     const result = await pool.query(
       `INSERT INTO events (squad_id, title, opponent, event_type, format, required_teams, event_date, location, duration_minutes, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
@@ -477,6 +511,13 @@ router.post('/:id/join', requireAuth(), async (req, res) => {
     );
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Squad already joined this event' });
+    }
+
+    const roster = await getRosterStatus(pool, squadId);
+    if (!roster.meetsMinimum) {
+      return res.status(400).json({
+        error: `Your roster needs at least ${roster.minRosterSize} athletes to join this event (you currently have ${roster.athleteCount}).`,
+      });
     }
 
     const countResult = await pool.query(

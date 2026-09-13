@@ -6,12 +6,6 @@ const { clerkMiddleware, requireAuth } = require('./middleware/auth');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 const path = require('path');
-
-// ... after existing middleware, before routes:
-if (process.env.NODE_ENV !== 'test') {
-  const swaggerDocument = YAML.load(path.join(__dirname, '..', 'openapi.yml'));
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-}
 const webhooksRouter = require('./routes/webhooks');
 const squadsRouter = require('./routes/squads');
 const athletesRouter = require('./routes/athletes');
@@ -33,6 +27,14 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(clerkMiddleware());
+
+// Moved here from before `const app = express()` — that's what was crashing
+// the server. Everything else in this block is unchanged from what you sent.
+if (process.env.NODE_ENV !== 'test') {
+  const swaggerDocument = YAML.load(path.join(__dirname, '..', 'openapi.yml'));
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+}
+
 app.use('/api/squads', squadsRouter);
 app.use('/api/athletes', athletesRouter);
 app.use('/api/events', eventsRouter);

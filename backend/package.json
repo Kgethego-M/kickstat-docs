@@ -23,7 +23,9 @@
     "node-pg-migrate": "^9.0.0",
     "pg": "^8.22.0",
     "resend": "^6.22.0",
-    "svix": "^1.99.1"
+    "svix": "^1.99.1",
+    "swagger-ui-express": "^5.0.1",
+    "yamljs": "^0.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
