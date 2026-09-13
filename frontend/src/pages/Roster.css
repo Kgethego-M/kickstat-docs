@@ -7,6 +7,73 @@
   flex-wrap: wrap;
 }
 
+.roster-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-pitch);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.btn-icon:hover {
+  border-color: var(--color-gold);
+  color: var(--color-ink);
+}
+
+.btn-icon-active {
+  background: var(--color-gold);
+  border-color: var(--color-gold);
+  color: var(--color-pitch);
+}
+
+.btn-icon-active:hover {
+  color: var(--color-pitch);
+}
+
+.roster-search {
+  position: relative;
+  max-width: 360px;
+  margin-bottom: 24px;
+}
+
+.roster-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-ink-soft);
+  pointer-events: none;
+}
+
+.roster-search input {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 15px;
+  padding: 10px 14px 10px 38px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-pitch);
+  color: var(--color-ink);
+}
+
+.roster-search input:focus {
+  outline: none;
+  border-color: var(--color-sky);
+  box-shadow: 0 0 0 3px var(--color-sky-soft);
+}
+
 .roster-error {
   background: rgba(179, 59, 59, 0.08);
   border: 1px solid rgba(179, 59, 59, 0.3);
