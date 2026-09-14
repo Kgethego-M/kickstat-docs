@@ -53,12 +53,13 @@ jobs:
         working-directory: ./backend
     env:
       NODE_ENV: test
-      # The runner uses Docker host networking, so service containers share
-      # the actual host's network directly (no per-job isolation, no NAT).
-      # Port 5432 is already taken on that host (most likely by Gitea's own
-      # database), so this Postgres instance listens on 5433 instead, and
-      # DATABASE_URL/the service command below both point at that port.
-      DATABASE_URL: postgresql://test_user:test_password@localhost:5433/sport_coaching_test
+      # DATABASE_URL is intentionally NOT set here. The runner's service
+      # networking has flipped between host networking (service reachable at
+      # localhost:5433) and per-job bridge networks (service reachable by
+      # container name at postgres:5433), so the probe step below discovers
+      # the working address and exports DATABASE_URL for later steps.
+      # Postgres still listens on 5433 because 5432 is taken on the runner
+      # host by Gitea's own database.
 
     services:
       postgres:
@@ -88,6 +89,70 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Service networking on the runner is not stable (host networking vs
+      # per-job bridge networks across runner updates), so probe every
+      # candidate address and export the first one that accepts a
+      # connection as DATABASE_URL for the migration/test steps.
+      - name: Resolve Postgres address
+        run: |
+          cat > pgprobe.ci.js <<'EOF'
+          const { Client } = require("pg");
+          const fs = require("fs");
+          const candidates = [
+            "postgres:5433",
+            "localhost:5433",
+            "127.0.0.1:5433",
+            "172.17.0.1:5433",
+            "host.docker.internal:5433",
+          ];
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          (async () => {
+            for (let round = 1; round <= 6; round++) {
+              for (const c of candidates) {
+                const [host, port] = c.split(":");
+                const writeEnv = () =>
+                  fs.appendFileSync(
+                    process.env.GITHUB_ENV,
+                    "DATABASE_URL=postgresql://test_user:test_password@" +
+                      host + ":" + port + "/sport_coaching_test\n"
+                  );
+                const client = new Client({
+                  host,
+                  port: Number(port),
+                  // Full credentials: only a complete authenticated connect
+                  // proves the candidate is OUR service container — an auth
+                  // failure means it is some other Postgres and must be
+                  // rejected (the SASL "client password must be a string"
+                  // error on a bare probe means the server answered but the
+                  // probe could not authenticate).
+                  user: "test_user",
+                  password: "test_password",
+                  database: "sport_coaching_test",
+                  connectionTimeoutMillis: 2000,
+                });
+                try {
+                  await client.connect();
+                  await client.end();
+                  console.log("Postgres reachable at " + c);
+                  writeEnv();
+                  process.exit(0);
+                } catch (err) {
+                  await client.end().catch(() => {});
+                  console.log(
+                    "round " + round + ": not reachable at " + c +
+                    " (" + (err.code || err.message) + ")"
+                  );
+                }
+              }
+              await sleep(5000);
+            }
+            console.error("ERROR: no Postgres candidate was reachable");
+            process.exit(1);
+          })();
+          EOF
+          node pgprobe.ci.js
+          rm pgprobe.ci.js
 
       - name: Lint
         run: npm run lint
@@ -137,3 +202,60 @@ jobs:
             --site="$NETLIFY_COVERAGE_SITE_ID" \
             --auth="$NETLIFY_AUTH_TOKEN" \
             || echo "::warning::Coverage dashboard deploy failed or timed out — check NETLIFY_AUTH_TOKEN / NETLIFY_COVERAGE_SITE_ID secrets, or whether this runner can reach Netlify's API; dashboard not updated"
+
+  deploy-production:
+    name: Deploy Production
+    needs: [frontend-ci, backend-ci]
+    # Only deploy on real pushes to main — never feature branches or PRs,
+    # and only after lint and tests have passed.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Full history so the GitHub push below isn't from a shallow
+          # clone — GitHub rejects pushes from shallow repositories.
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Render auto-deploys the backend whenever the GitHub fork's main
+      # advances, so syncing the commit there IS the backend deploy.
+      - name: Sync main to GitHub (triggers Render backend deploy)
+        env:
+          # Named GH_PAT because Gitea forbids secrets starting with GITHUB_
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -z "$GH_PAT" ]; then
+            echo "::warning::GH_PAT secret not set — skipping backend deploy sync"
+            exit 0
+          fi
+          git remote remove github 2>/dev/null || true
+          git remote add github "https://x-access-token:${GH_PAT}@github.com/TasmiyaChoonara/sport-coaching-tool.git"
+          git push github HEAD:main \
+            || echo "::warning::GitHub sync failed — check GH_PAT; backend not updated"
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy frontend to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        # Deploy-stage failures warn instead of failing the job, matching the
+        # Netlify coverage step above: code is already verified by the
+        # lint/test jobs, so a deploy hiccup shouldn't turn CI red.
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::Cloudflare secrets not set — skipping frontend deploy"
+            exit 0
+          fi
+          timeout 300 npx --yes wrangler pages deploy --branch=main \
+            || echo "::warning::Cloudflare Pages deploy failed — frontend not updated"
