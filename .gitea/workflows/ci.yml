@@ -53,12 +53,12 @@ jobs:
         working-directory: ./backend
     env:
       NODE_ENV: test
-      # The service below is reachable by its service name ("postgres") as a
-      # hostname, since Gitea Actions attaches service containers to the same
-      # job network as the runner container. No IP-detection or polling script
-      # needed — the "options" health check below already blocks the job from
-      # proceeding until Postgres is actually accepting connections.
-      DATABASE_URL: postgresql://test_user:test_password@postgres:5432/sport_coaching_test
+      # The runner uses Docker host networking, so service containers share
+      # the actual host's network directly (no per-job isolation, no NAT).
+      # Port 5432 is already taken on that host (most likely by Gitea's own
+      # database), so this Postgres instance listens on 5433 instead, and
+      # DATABASE_URL/the service command below both point at that port.
+      DATABASE_URL: postgresql://test_user:test_password@localhost:5433/sport_coaching_test
 
     services:
       postgres:
@@ -67,11 +67,13 @@ jobs:
           POSTGRES_USER: test_user
           POSTGRES_PASSWORD: test_password
           POSTGRES_DB: sport_coaching_test
+          PGPORT: "5433"
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -p 5433"
           --health-interval 5s
           --health-timeout 5s
-          --health-retries 10
+          --health-retries 20
+          --health-start-period 10s
 
     steps:
       - name: Checkout code
