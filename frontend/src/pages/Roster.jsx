@@ -231,12 +231,35 @@ function Roster() {
             </label>
             <label>
               Position
-              <input
-                type="text"
+              <select
                 value={form.position}
                 onChange={(e) => setForm({ ...form, position: e.target.value })}
-                placeholder="e.g. Midfielder"
-              />
+              >
+                <option value="">Select position</option>
+                <optgroup label="Goalkeeper">
+                  <option value="Goalkeeper">Goalkeeper</option>
+                </optgroup>
+                <optgroup label="Defenders">
+                  <option value="Centre-Back">Centre-Back</option>
+                  <option value="Right-Back">Right-Back</option>
+                  <option value="Left-Back">Left-Back</option>
+                  <option value="Wing-Back">Wing-Back</option>
+                  <option value="Sweeper">Sweeper</option>
+                </optgroup>
+                <optgroup label="Midfielders">
+                  <option value="Defensive Midfielder">Defensive Midfielder</option>
+                  <option value="Central Midfielder">Central Midfielder</option>
+                  <option value="Attacking Midfielder">Attacking Midfielder</option>
+                  <option value="Right Midfielder">Right Midfielder</option>
+                  <option value="Left Midfielder">Left Midfielder</option>
+                </optgroup>
+                <optgroup label="Forwards">
+                  <option value="Right Winger">Right Winger</option>
+                  <option value="Left Winger">Left Winger</option>
+                  <option value="Striker">Striker</option>
+                  <option value="Centre Forward">Centre Forward</option>
+                </optgroup>
+              </select>
             </label>
             <label>
               Squad number
