@@ -33,8 +33,17 @@ jobs:
       - name: Build
         run: npm run build
       
-      - name: Run frontend tests
-        run: npm test
+      - name: Run frontend tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ./frontend/coverage
+          slug: Mmmaphefo/sport-coaching-tool
+          flags: frontend
+          fail_ci_if_error: false
 
   backend-ci:
     name: Backend Lint & Test
@@ -44,12 +53,12 @@ jobs:
         working-directory: ./backend
     env:
       NODE_ENV: test
-      # The service below is reachable by its service name ("postgres") as a
-      # hostname, since Gitea Actions attaches service containers to the same
-      # job network as the runner container. No IP-detection or polling script
-      # needed — the "options" health check below already blocks the job from
-      # proceeding until Postgres is actually accepting connections.
-      DATABASE_URL: postgresql://test_user:test_password@postgres:5432/sport_coaching_test
+      # The runner uses Docker host networking, so service containers share
+      # the actual host's network directly (no per-job isolation, no NAT).
+      # Port 5432 is already taken on that host (most likely by Gitea's own
+      # database), so this Postgres instance listens on 5433 instead, and
+      # DATABASE_URL/the service command below both point at that port.
+      DATABASE_URL: postgresql://test_user:test_password@localhost:5433/sport_coaching_test
 
     services:
       postgres:
@@ -58,11 +67,13 @@ jobs:
           POSTGRES_USER: test_user
           POSTGRES_PASSWORD: test_password
           POSTGRES_DB: sport_coaching_test
+          PGPORT: "5433"
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -p 5433"
           --health-interval 5s
           --health-timeout 5s
-          --health-retries 10
+          --health-retries 20
+          --health-start-period 10s
 
     steps:
       - name: Checkout code
@@ -114,13 +125,15 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_COVERAGE_SITE_ID: ${{ secrets.NETLIFY_COVERAGE_SITE_ID }}
-        # A broken Netlify token must not fail the whole backend job — the
-        # coverage artifact is already uploaded above. Warn instead, and the
-        # dashboard self-heals on the next run once the secrets are fixed.
+        # A broken Netlify token — or an unreachable Netlify API from this
+        # runner's network — must not fail the whole backend job or hang it
+        # indefinitely. The coverage artifact and Codecov upload already
+        # succeeded above. "timeout" caps this at 60s so a network issue
+        # fails fast with a clear message instead of hanging the job.
         run: |
-          npx --yes netlify-cli deploy \
+          timeout 60 npx --yes netlify-cli deploy \
             --dir=coverage \
             --prod \
             --site="$NETLIFY_COVERAGE_SITE_ID" \
             --auth="$NETLIFY_AUTH_TOKEN" \
-            || echo "::warning::Coverage dashboard deploy failed — check NETLIFY_AUTH_TOKEN / NETLIFY_COVERAGE_SITE_ID secrets; dashboard not updated"
+            || echo "::warning::Coverage dashboard deploy failed or timed out — check NETLIFY_AUTH_TOKEN / NETLIFY_COVERAGE_SITE_ID secrets, or whether this runner can reach Netlify's API; dashboard not updated"
