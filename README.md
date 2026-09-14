@@ -199,6 +199,39 @@ is only needed for out-of-band fixes.
 > The Render free tier sleeps after ~15 min of inactivity; the first request
 > afterwards takes about a minute to wake up.
 
+### Deployment inventory
+
+Third-party services used by the app: **Clerk** (auth), **Resend** (invite/reminder
+emails), **football-data.org** (external fixtures API).
+
+CI auto-deploy is wired through three secrets stored in Gitea
+(Settings → Actions → Secrets — values are never committed to the repo):
+
+| Secret | What it is |
+|--------|------------|
+| `GH_PAT` | GitHub fine-grained token (Contents: Read and write on the fork) — lets CI push to the GitHub mirror. **Expires Dec 13, 2026 — renew and update before then** |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare custom token (Account → Cloudflare Pages → Edit) — lets CI run `wrangler pages deploy` |
+| `CLOUDFLARE_ACCOUNT_ID` | 32-char Cloudflare account ID |
+
+Environment variables configured on the Render service: `DATABASE_URL` (Neon
+direct connection string — pooling **off**, no `-pooler` host, migrations break
+on the pooled URL), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`,
+`CLERK_WEBHOOK_SECRET`, `FRONTEND_URL` (= https://kickstat.pages.dev, drives
+CORS), `RESEND_API_KEY`, `EMAIL_FROM`, `FOOTBALL_DATA_API_KEY`.
+
+Key deployment files in this repo:
+
+| File | Purpose |
+|------|---------|
+| `render.yaml` | Render Blueprint: service definition, build/start commands (migrations then `node src/app.js`), health check |
+| `frontend/.env.production` | `VITE_API_URL` + `VITE_CLERK_PUBLISHABLE_KEY`, baked into the bundle at build time |
+| `frontend/public/_redirects` | SPA fallback (`/* /index.html 200`) |
+| `wrangler.jsonc` | Cloudflare Pages config (`pages_build_output_dir: frontend/dist`) |
+| `.gitea/workflows/ci.yml` | CI pipeline: lint/tests, Postgres address probe, Deploy Production job |
+
+Never push directly to the GitHub mirror — Gitea `main` is the single source of
+truth and CI keeps the mirror in sync.
+
 ## Documentation
 
 Full project documentation is available in the [docs site](https://kickstat-docs-v2.netlify.app/) (Docusaurus).
