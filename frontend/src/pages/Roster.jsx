@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
+import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
 import './Roster.css'
 
@@ -328,7 +329,7 @@ function Roster() {
       )}
 
       {loading ? (
-        <p className="roster-status">Loading roster...</p>
+        <Loader label="Loading roster..." />
       ) : athletes.length === 0 ? (
         <div className="roster-empty">
           <p>No athletes yet. {isCoach ? 'Add your first athlete to start building your squad.' : 'Your coach will add athletes here.'}</p>

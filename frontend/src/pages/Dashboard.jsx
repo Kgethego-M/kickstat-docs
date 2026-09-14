@@ -2,6 +2,7 @@ import { useUser, useAuth } from '@clerk/clerk-react'
 import { Link, Navigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import Layout from '../components/Layout'
+import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
 import './Dashboard.css'
 
@@ -123,7 +124,7 @@ function Dashboard() {
   if (loading) {
     return (
       <Layout>
-        <p className="roster-status">Loading...</p>
+        <Loader label="Loading your dashboard..." />
       </Layout>
     )
   }

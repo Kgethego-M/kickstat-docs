@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
+import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
 import WeatherWidget from '../components/WeatherWidget'
 import './Events.css'
@@ -491,7 +492,7 @@ function Events() {
       {/* My Events tab */}
       {activeTab === 'mine' && (
         loading ? (
-          <p className="roster-status">Loading events...</p>
+          <Loader label="Loading events..." />
         ) : events.length === 0 ? (
           <div className="roster-empty">
             <p>No events yet. Schedule your first match or training session.</p>
@@ -629,7 +630,7 @@ function Events() {
           {proError && <div className="roster-error">{proError}</div>}
 
           {proLoading ? (
-            <p className="roster-status">Loading fixtures...</p>
+            <Loader label="Loading fixtures..." />
           ) : (
             <>
               {/* Standings table — hidden for CL which has no simple table */}
