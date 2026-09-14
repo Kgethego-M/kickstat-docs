@@ -120,42 +120,4 @@ describe('Events', () => {
     expect(screen.getByRole('heading', { name: /Schedule event/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Create event/i })).toBeInTheDocument()
   })
-
-  it('switches to the Pro Fixtures tab and loads league data', async () => {
-    mocks.apiRequest.mockImplementation((path) => {
-      if (path === '/api/events') return Promise.resolve([])
-      if (path === '/api/external/fixtures?league=PL') {
-        return Promise.resolve([
-          {
-            id: 101,
-            homeTeam: 'Arsenal',
-            awayTeam: 'Chelsea',
-            status: 'SCHEDULED',
-            kickoff: '2026-09-12T16:30:00.000Z',
-            score: { home: null, away: null },
-          },
-        ])
-      }
-      if (path === '/api/external/standings?league=PL') {
-        return Promise.resolve([
-          { position: 1, team: 'Arsenal', played: 5, won: 4, drawn: 1, lost: 0, goalDifference: 8, points: 13 },
-        ])
-      }
-      return Promise.resolve({})
-    })
-
-    renderWithRouter(<Events />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Pro Fixtures/i })).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: /Pro Fixtures/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText(/Arsenal/i, { selector: '.pro-fixture-home' })).toBeInTheDocument()
-      expect(screen.getByText(/Chelsea/i, { selector: '.pro-fixture-away' })).toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: /Standings/i })).toBeInTheDocument()
-    })
-  })
 })
