@@ -6,8 +6,10 @@ const { clerkMiddleware, requireAuth } = require('./middleware/auth');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 const path = require('path');
+const app = express();
 
-// ... after existing middleware, before routes:
+// API documentation is available outside the test environment.
+
 if (process.env.NODE_ENV !== 'test') {
   const swaggerDocument = YAML.load(path.join(__dirname, '..', 'openapi.yml'));
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
@@ -23,8 +25,6 @@ const accountRouter = require('./routes/account');
 const weatherRouter = require('./routes/weather');
 const injuriesRouter = require('./routes/injuries');
 const { sendEventReminders } = require('./lib/reminders');
-
-const app = express();
 
 app.use('/webhooks', webhooksRouter);
 app.use(cors({
