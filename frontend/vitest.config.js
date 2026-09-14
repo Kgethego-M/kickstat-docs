@@ -8,6 +8,11 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test-setup.js',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      exclude: ['src/test-setup.js', '**/*.test.jsx', 'vitest.config.js'],
+    },
   },
   define: {
     'import.meta.env.VITE_API_URL': JSON.stringify('http://localhost:5001'),
