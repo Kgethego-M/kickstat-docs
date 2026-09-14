@@ -33,10 +33,6 @@ jobs:
       - name: Build
         run: npm run build
       
-<<<<<<< Updated upstream
-      - name: Run frontend tests
-        run: npm test
-=======
       - name: Run frontend tests with coverage
         run: npm run test:coverage
 
@@ -48,7 +44,6 @@ jobs:
           slug: Mmmaphefo/sport-coaching-tool
           flags: frontend
           fail_ci_if_error: false
->>>>>>> Stashed changes
 
   backend-ci:
     name: Backend Lint & Test
@@ -128,25 +123,15 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_COVERAGE_SITE_ID: ${{ secrets.NETLIFY_COVERAGE_SITE_ID }}
-<<<<<<< Updated upstream
-        # A broken Netlify token must not fail the whole backend job — the
-        # coverage artifact is already uploaded above. Warn instead, and the
-        # dashboard self-heals on the next run once the secrets are fixed.
-=======
         # A broken Netlify token — or an unreachable Netlify API from this
         # runner's network — must not fail the whole backend job or hang it
         # indefinitely. The coverage artifact and Codecov upload already
         # succeeded above. "timeout" caps this at 60s so a network issue
         # fails fast with a clear message instead of hanging the job.
->>>>>>> Stashed changes
         run: |
           timeout 60 npx --yes netlify-cli deploy \
             --dir=coverage \
             --prod \
             --site="$NETLIFY_COVERAGE_SITE_ID" \
             --auth="$NETLIFY_AUTH_TOKEN" \
-<<<<<<< Updated upstream
-            || echo "::warning::Coverage dashboard deploy failed — check NETLIFY_AUTH_TOKEN / NETLIFY_COVERAGE_SITE_ID secrets; dashboard not updated"
-=======
             || echo "::warning::Coverage dashboard deploy failed or timed out — check NETLIFY_AUTH_TOKEN / NETLIFY_COVERAGE_SITE_ID secrets, or whether this runner can reach Netlify's API; dashboard not updated"
->>>>>>> Stashed changes
