@@ -162,16 +162,17 @@ jobs:
       # advances, so syncing the commit there IS the backend deploy.
       - name: Sync main to GitHub (triggers Render backend deploy)
         env:
-          GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
+          # Named GH_PAT because Gitea forbids secrets starting with GITHUB_
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
-          if [ -z "$GITHUB_PAT" ]; then
-            echo "::warning::GITHUB_PAT secret not set — skipping backend deploy sync"
+          if [ -z "$GH_PAT" ]; then
+            echo "::warning::GH_PAT secret not set — skipping backend deploy sync"
             exit 0
           fi
           git remote remove github 2>/dev/null || true
-          git remote add github "https://x-access-token:${GITHUB_PAT}@github.com/TasmiyaChoonara/sport-coaching-tool.git"
+          git remote add github "https://x-access-token:${GH_PAT}@github.com/TasmiyaChoonara/sport-coaching-tool.git"
           git push github HEAD:main \
-            || echo "::warning::GitHub sync failed — check GITHUB_PAT; backend not updated"
+            || echo "::warning::GitHub sync failed — check GH_PAT; backend not updated"
 
       - name: Build frontend
         working-directory: ./frontend
