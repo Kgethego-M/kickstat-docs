@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
+import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
 import WeatherWidget from '../components/WeatherWidget'
 import './Events.css'
@@ -53,6 +54,15 @@ const formatLabel = {
   tournament: 'Tournament',
 }
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function dayKey(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 function Events() {
   const { getToken } = useAuth()
   const navigate = useNavigate()
@@ -65,6 +75,11 @@ function Events() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [squad, setSquad] = useState(null)
+
+  // --- List / Calendar toggle state ---
+  const [viewMode, setViewMode] = useState('list') // 'list' | 'calendar'
+  const [calendarDate, setCalendarDate] = useState(() => new Date())
+  const [dayPopup, setDayPopup] = useState(null) // { key, label, events } | null
 
   const rosterBelowMinimum = !!(
     squad && squad.athlete_count < squad.min_roster_size
@@ -223,6 +238,85 @@ function Events() {
     })
   }
 
+  // --- Calendar helpers ---
+
+  const eventsByDay = useMemo(() => {
+    const map = {}
+    for (const event of events) {
+      if (!event.event_date) continue
+      const key = dayKey(new Date(event.event_date))
+      if (!map[key]) map[key] = []
+      map[key].push(event)
+    }
+    for (const key in map) {
+      map[key].sort((a, b) => new Date(a.event_date) - new Date(b.event_date))
+    }
+    return map
+  }, [events])
+
+  const calendarCells = useMemo(() => {
+    const year = calendarDate.getFullYear()
+    const month = calendarDate.getMonth()
+    const monthStart = new Date(year, month, 1)
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const leading = monthStart.getDay() // 0 = Sunday
+    const totalCells = Math.ceil((leading + daysInMonth) / 7) * 7
+    const todayKey = dayKey(new Date())
+
+    const cells = []
+    for (let i = 0; i < totalCells; i++) {
+      const cellDate = new Date(year, month, i - leading + 1)
+      const key = dayKey(cellDate)
+      cells.push({
+        key,
+        date: cellDate,
+        inMonth: cellDate.getMonth() === month,
+        isToday: key === todayKey,
+        events: eventsByDay[key] || [],
+      })
+    }
+    return cells
+  }, [calendarDate, eventsByDay])
+
+  function goToMonth(offset) {
+    setCalendarDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1))
+  }
+
+  function openDayPopup(cell) {
+    if (cell.events.length === 0) return
+    setDayPopup({
+      key: cell.key,
+      label: cell.date.toLocaleDateString(undefined, {
+        weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+      }),
+      events: cell.events,
+    })
+  }
+
+  function closeDayPopup() {
+    setDayPopup(null)
+  }
+
+  function handlePopupEventClick(event) {
+    closeDayPopup()
+    navigateToEvent(event)
+  }
+
+  function eventLabel(event) {
+    if (event.format === 'league' || event.format === 'tournament') {
+      return event.title || 'League'
+    }
+    return event.title || event.opponent || 'Training'
+  }
+
+  function eventTime(event) {
+    return new Date(event.event_date).toLocaleTimeString(undefined, {
+      hour: 'numeric', minute: '2-digit',
+    })
+  }
+
+  const monthLabel = calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+
   return (
     <Layout>
       <div className="roster-header">
@@ -231,9 +325,29 @@ function Events() {
           <h1>Events</h1>
         </div>
         {activeTab === 'mine' && (
-          <button className="btn btn-gold" onClick={openForm}>
-            Schedule event
-          </button>
+          <div className="roster-header-actions">
+            <div className="view-toggle" role="tablist" aria-label="Events view">
+              <button
+                type="button"
+                className={`view-toggle-btn${viewMode === 'list' ? ' view-toggle-btn-active' : ''}`}
+                onClick={() => setViewMode('list')}
+                aria-pressed={viewMode === 'list'}
+              >
+                List
+              </button>
+              <button
+                type="button"
+                className={`view-toggle-btn${viewMode === 'calendar' ? ' view-toggle-btn-active' : ''}`}
+                onClick={() => setViewMode('calendar')}
+                aria-pressed={viewMode === 'calendar'}
+              >
+                Calendar
+              </button>
+            </div>
+            <button className="btn btn-gold" onClick={openForm}>
+              Schedule event
+            </button>
+          </div>
         )}
       </div>
 
@@ -378,12 +492,12 @@ function Events() {
       {/* My Events tab */}
       {activeTab === 'mine' && (
         loading ? (
-          <p className="roster-status">Loading events...</p>
+          <Loader label="Loading events..." />
         ) : events.length === 0 ? (
           <div className="roster-empty">
             <p>No events yet. Schedule your first match or training session.</p>
           </div>
-        ) : (
+        ) : viewMode === 'list' ? (
           <div className="events-grid">
             {events.map((event) => (
               <div key={event.id} className={`event-card event-card-${event.status}`}>
@@ -418,7 +532,84 @@ function Events() {
               </div>
             ))}
           </div>
+        ) : (
+          <div className="calendar-wrap">
+            <div className="calendar-header">
+              <button type="button" className="calendar-nav-btn" onClick={() => goToMonth(-1)} aria-label="Previous month">
+                &larr;
+              </button>
+              <h2 className="calendar-month-label">{monthLabel}</h2>
+              <button type="button" className="calendar-nav-btn" onClick={() => goToMonth(1)} aria-label="Next month">
+                &rarr;
+              </button>
+            </div>
+
+            <div className="calendar-grid">
+              {WEEKDAYS.map((wd) => (
+                <div key={wd} className="calendar-weekday">{wd}</div>
+              ))}
+              {calendarCells.map((cell) => (
+                <button
+                  type="button"
+                  key={cell.key}
+                  className={[
+                    'calendar-day',
+                    !cell.inMonth ? 'calendar-day-outside' : '',
+                    cell.isToday ? 'calendar-day-today' : '',
+                    cell.events.length > 0 ? 'calendar-day-has-events' : '',
+                  ].filter(Boolean).join(' ')}
+                  onClick={() => openDayPopup(cell)}
+                  disabled={cell.events.length === 0}
+                >
+                  <span className="calendar-day-number">{cell.date.getDate()}</span>
+                  {cell.events.length > 0 && (
+                    <span className="calendar-day-chips">
+                      {cell.events.slice(0, 2).map((ev) => (
+                        <span key={ev.id} className={`calendar-chip calendar-chip-${ev.status}`}>
+                          <span className="calendar-chip-time">{eventTime(ev)}</span>
+                          <span className="calendar-chip-title">{eventLabel(ev)}</span>
+                        </span>
+                      ))}
+                      {cell.events.length > 2 && (
+                        <span className="calendar-day-more">+{cell.events.length - 2} more</span>
+                      )}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
         )
+      )}
+
+      {/* Day popup */}
+      {dayPopup && (
+        <div className="calendar-popup-backdrop" onClick={closeDayPopup}>
+          <div className="calendar-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="calendar-popup-header">
+              <h3>{dayPopup.label}</h3>
+              <button type="button" className="calendar-popup-close" onClick={closeDayPopup} aria-label="Close">
+                &times;
+              </button>
+            </div>
+            <div className="calendar-popup-list">
+              {dayPopup.events.map((event) => (
+                <button
+                  type="button"
+                  key={event.id}
+                  className="calendar-popup-item"
+                  onClick={() => handlePopupEventClick(event)}
+                >
+                  <span className={`event-status event-status-${event.status}`}>
+                    {statusLabel[event.status] || event.status}
+                  </span>
+                  <span className="calendar-popup-item-title">{eventLabel(event)}</span>
+                  <span className="calendar-popup-item-time">{eventTime(event)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Pro Fixtures tab */}
@@ -439,7 +630,7 @@ function Events() {
           {proError && <div className="roster-error">{proError}</div>}
 
           {proLoading ? (
-            <p className="roster-status">Loading fixtures...</p>
+            <Loader label="Loading fixtures..." />
           ) : (
             <>
               {/* Standings table — hidden for CL which has no simple table */}

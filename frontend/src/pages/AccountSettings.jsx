@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth, UserProfile } from '@clerk/clerk-react'
 import Layout from '../components/Layout'
+import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
 import './AccountSettings.css'
 
@@ -88,7 +89,7 @@ function AccountSettings() {
       <form className="roster-form" onSubmit={handleSubmit}>
         <h3>Team</h3>
         {loading ? (
-          <p className="roster-status">Loading team details...</p>
+          <Loader label="Loading team details..." />
         ) : (
           <>
             <div className="roster-form-grid">

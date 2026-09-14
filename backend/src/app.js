@@ -22,7 +22,15 @@ const app = express();
 
 app.use('/webhooks', webhooksRouter);
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
+  // FRONTEND_URL carries the deployed frontend origin (set on the hosting
+  // platform); the extra ports cover local Vite dev servers, which bump the
+  // port when 5173 is already in use.
+  origin: [
+    process.env.FRONTEND_URL,
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+  ].filter(Boolean),
   credentials: true,
 }));
 app.use(express.json());
