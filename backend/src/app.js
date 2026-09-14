@@ -18,6 +18,8 @@ const weatherRouter = require('./routes/weather');
 const injuriesRouter = require('./routes/injuries');
 const { sendEventReminders } = require('./lib/reminders');
 
+const app = express();
+
 app.use('/webhooks', webhooksRouter);
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
