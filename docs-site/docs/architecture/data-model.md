@@ -117,6 +117,31 @@ the diagram alone:
   Assistant invites don't use this field at all.
 
 ---
+## Design rationale
+
+### Why a relational model?
+
+The sport coaching domain is inherently relational:
+- A **coach** owns exactly one **squad**, and a squad has many **athletes**.
+- **Events** belong to a squad and contain **log entries** attributed to specific athletes.
+- **Fixtures** connect two squads (home and away) within a **league event**.
+
+PostgreSQL was chosen over alternatives (MongoDB, SQLite) because:
+1. **Referential integrity** — foreign keys and cascade deletes ensure that removing a squad automatically cleans up its athletes, events, and log entries.
+2. **Complex queries** — standings calculations (points, goal difference, goals for) require JOINs and aggregations that are natural in SQL but awkward in document stores.
+3. **Concurrency** — multiple assistants logging simultaneously (advanced tier) requires transaction support.
+
+### Key design decisions
+
+| Decision | Motivation |
+|----------|------------|
+| `squads.coach_id` is unique | A coach owns exactly one squad. This prevents duplicate squads and simplifies ownership lookups. |
+| `athletes.user_id` is nullable and optional | Athletes exist on the roster before they have an account. When they accept an invite, `user_id` is set to link them. |
+| `log_entries.deleted_at` for soft deletes | "Undo" doesn't destroy data — it timestamps the row as deleted. This preserves audit history and allows recovery. |
+| `invites.athlete_id` is nullable | Assistant invites don't link to a roster row. Only athlete invites do, so accepting the invite attaches login to the existing stats. |
+| `events.status` is a string, not an enum | Allows adding new statuses (e.g., `postponed`) without a migration. |
+| Statistics are computed on read | Avoiding a separate `stats` table means the log is the single source of truth. Stats can never drift out of sync. |
+| `fixtures` are separate from `events` | A league event contains many fixtures. Keeping them in separate tables allows each fixture to have its own log, status, and date. |
 
 ## Tables
 
