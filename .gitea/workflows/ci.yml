@@ -53,12 +53,13 @@ jobs:
         working-directory: ./backend
     env:
       NODE_ENV: test
-      # The runner uses Docker host networking, so service containers share
-      # the actual host's network directly (no per-job isolation, no NAT).
-      # Port 5432 is already taken on that host (most likely by Gitea's own
-      # database), so this Postgres instance listens on 5433 instead, and
-      # DATABASE_URL/the service command below both point at that port.
-      DATABASE_URL: postgresql://test_user:test_password@localhost:5433/sport_coaching_test
+      # DATABASE_URL is intentionally NOT set here. The runner's service
+      # networking has flipped between host networking (service reachable at
+      # localhost:5433) and per-job bridge networks (service reachable by
+      # container name at postgres:5433), so the probe step below discovers
+      # the working address and exports DATABASE_URL for later steps.
+      # Postgres still listens on 5433 because 5432 is taken on the runner
+      # host by Gitea's own database.
 
     services:
       postgres:
@@ -88,6 +89,72 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Service networking on the runner is not stable (host networking vs
+      # per-job bridge networks across runner updates), so probe every
+      # candidate address and export the first one that accepts a
+      # connection as DATABASE_URL for the migration/test steps.
+      - name: Resolve Postgres address
+        run: |
+          cat > pgprobe.ci.js <<'EOF'
+          const { Client } = require("pg");
+          const fs = require("fs");
+          const candidates = [
+            "postgres:5433",
+            "localhost:5433",
+            "127.0.0.1:5433",
+            "172.17.0.1:5433",
+            "host.docker.internal:5433",
+          ];
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          (async () => {
+            for (let round = 1; round <= 6; round++) {
+              for (const c of candidates) {
+                const [host, port] = c.split(":");
+                const writeEnv = () =>
+                  fs.appendFileSync(
+                    process.env.GITHUB_ENV,
+                    "DATABASE_URL=postgresql://test_user:test_password@" +
+                      host + ":" + port + "/sport_coaching_test\n"
+                  );
+                const client = new Client({
+                  host,
+                  port: Number(port),
+                  connectionTimeoutMillis: 2000,
+                });
+                try {
+                  await client.connect();
+                  await client.end();
+                  console.log("Postgres reachable at " + c);
+                  writeEnv();
+                  process.exit(0);
+                } catch (err) {
+                  await client.end().catch(() => {});
+                  // A 5-char SQLSTATE (e.g. 3D000) means the server answered —
+                  // the address is reachable; the probe Client simply has no
+                  // database name, so the server rejected the session.
+                  if (err.code && /^[0-9A-Z]{5}$/.test(err.code)) {
+                    console.log(
+                      "Postgres reachable at " + c +
+                      " (server responded: " + err.code + ")"
+                    );
+                    writeEnv();
+                    process.exit(0);
+                  }
+                  console.log(
+                    "round " + round + ": not reachable at " + c +
+                    " (" + (err.code || err.message) + ")"
+                  );
+                }
+              }
+              await sleep(5000);
+            }
+            console.error("ERROR: no Postgres candidate was reachable");
+            process.exit(1);
+          })();
+          EOF
+          node pgprobe.ci.js
+          rm pgprobe.ci.js
 
       - name: Lint
         run: npm run lint
