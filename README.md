@@ -180,6 +180,25 @@ npm run build     # Production build
 | DELETE | `/api/fixtures/:id/logs/:logId` | Undo a fixture log entry |
 | POST | `/api/invites` | Create an assistant invite (coach only) |
 
+## Deployment
+
+Production runs on free-tier hosting:
+
+| Service | Host | URL |
+|---------|------|-----|
+| Frontend | Cloudflare Pages | [kickstat.pages.dev](https://kickstat.pages.dev) |
+| Backend | Render | [kickstat-api-i2rc.onrender.com](https://kickstat-api-i2rc.onrender.com) |
+| Database | Neon (Frankfurt) | — |
+
+Every push to `main` on Gitea runs CI and, when green, auto-deploys:
+the commit is synced to the [GitHub mirror](https://github.com/TasmiyaChoonara/sport-coaching-tool)
+(which triggers the Render backend deploy with migrations) and the frontend
+is published to Cloudflare Pages via `wrangler`. Manual `wrangler pages deploy`
+is only needed for out-of-band fixes.
+
+> The Render free tier sleeps after ~15 min of inactivity; the first request
+> afterwards takes about a minute to wake up.
+
 ## Documentation
 
 Full project documentation is available in the [docs site](https://kickstat-docs-v2.netlify.app/) (Docusaurus).
