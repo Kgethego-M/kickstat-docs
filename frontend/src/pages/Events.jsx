@@ -64,6 +64,11 @@ function Events() {
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [squad, setSquad] = useState(null)
+
+  const rosterBelowMinimum = !!(
+    squad && squad.athlete_count < squad.min_roster_size
+  )
 
   // --- Pro Fixtures state ---
   const [activeTab, setActiveTab] = useState('mine')  // 'mine' | 'pro'
@@ -86,9 +91,20 @@ function Events() {
     }
   }, [getToken])
 
+  const loadSquad = useCallback(async () => {
+    try {
+      const data = await apiRequest('/api/squads/mine', { getToken })
+      setSquad(data)
+    } catch {
+      // Non-fatal — the create/join endpoints still enforce the roster
+      // minimum server-side even if this pre-check fails to load.
+    }
+  }, [getToken])
+
   useEffect(() => {
     loadEvents()
-  }, [loadEvents])
+    loadSquad()
+  }, [loadEvents, loadSquad])
 
   function openForm() {
     setForm(emptyForm)
@@ -104,6 +120,13 @@ function Events() {
     e.preventDefault()
     if (!form.event_date) {
       setError('Event date is required')
+      return
+    }
+
+    if (form.format !== 'training' && rosterBelowMinimum) {
+      setError(
+        `Your roster needs at least ${squad.min_roster_size} athletes to schedule a ${form.format} (you currently have ${squad.athlete_count}).`
+      )
       return
     }
 
@@ -139,6 +162,12 @@ function Events() {
 
   async function handleJoin(eventId) {
     setError('')
+    if (rosterBelowMinimum) {
+      setError(
+        `Your roster needs at least ${squad.min_roster_size} athletes to join this event (you currently have ${squad.athlete_count}).`
+      )
+      return
+    }
     try {
       await apiRequest(`/api/events/${eventId}/join`, { method: 'POST', getToken })
       await loadEvents()
@@ -207,6 +236,14 @@ function Events() {
           </button>
         )}
       </div>
+
+      {activeTab === 'mine' && rosterBelowMinimum && (
+        <div className="roster-error">
+          Your roster has {squad.athlete_count} athlete{squad.athlete_count === 1 ? '' : 's'}, but you need at
+          least {squad.min_roster_size} to schedule or join a match, league, or tournament. Training sessions
+          don't require the full minimum.
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="events-tabs">
@@ -322,7 +359,16 @@ function Events() {
             <button type="button" className="btn btn-ghost" onClick={closeForm}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-gold" disabled={saving}>
+            <button
+              type="submit"
+              className="btn btn-gold"
+              disabled={saving || (form.format !== 'training' && rosterBelowMinimum)}
+              title={
+                form.format !== 'training' && rosterBelowMinimum
+                  ? `Needs at least ${squad?.min_roster_size} athletes on the roster`
+                  : undefined
+              }
+            >
               {saving ? 'Saving...' : 'Create event'}
             </button>
           </div>
@@ -363,6 +409,8 @@ function Events() {
                     type="button"
                     className="btn btn-gold btn-join"
                     onClick={() => handleJoin(event.id)}
+                    disabled={rosterBelowMinimum}
+                    title={rosterBelowMinimum ? `Needs at least ${squad?.min_roster_size} athletes on the roster` : undefined}
                   >
                     Join
                   </button>

@@ -25,8 +25,14 @@ function Roster() {
   const [editingId, setEditingId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [justAdded, setJustAdded] = useState(null)
+  const [editMode, setEditMode] = useState(false)
+  const [search, setSearch] = useState('')
 
   const isCoach = role === 'coach'
+
+  const filteredAthletes = athletes.filter((athlete) =>
+    athlete.name.toLowerCase().includes(search.trim().toLowerCase())
+  )
 
   const loadAccount = useCallback(async () => {
     try {
@@ -59,6 +65,7 @@ function Roster() {
     setForm(emptyForm)
     setEditingId(null)
     setJustAdded(null)
+    setEditMode(false)
     setFormOpen(true)
   }
 
@@ -90,14 +97,35 @@ function Roster() {
       return
     }
 
+    const trimmedName = form.name.trim()
+    const squadNumber = form.squad_number ? Number(form.squad_number) : null
+
+    const duplicateName = athletes.find(
+      (a) => a.id !== editingId && a.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    )
+    if (duplicateName) {
+      setError(`${trimmedName} is already on the roster.`)
+      return
+    }
+
+    if (squadNumber != null) {
+      const duplicateNumber = athletes.find(
+        (a) => a.id !== editingId && a.squad_number === squadNumber
+      )
+      if (duplicateNumber) {
+        setError(`Squad number ${squadNumber} is already taken by ${duplicateNumber.name}.`)
+        return
+      }
+    }
+
     setSaving(true)
     setError('')
     setJustAdded(null)
 
     const payload = {
-      name: form.name.trim(),
+      name: trimmedName,
       position: form.position.trim() || null,
-      squad_number: form.squad_number ? Number(form.squad_number) : null,
+      squad_number: squadNumber,
       date_of_birth: form.date_of_birth || null,
       contact_info: form.contact_info.trim() || null,
       email: form.email.trim() || null,
@@ -153,10 +181,37 @@ function Roster() {
           <h1>Roster</h1>
         </div>
         {isCoach && (
-          <button className="btn btn-gold" onClick={openAddForm}>
-            Add athlete
-          </button>
+          <div className="roster-header-actions">
+            <button
+              type="button"
+              className={`btn-icon${editMode ? ' btn-icon-active' : ''}`}
+              onClick={() => setEditMode((prev) => !prev)}
+              title={editMode ? 'Done editing roster' : 'Edit roster'}
+              aria-pressed={editMode}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                <path d="M15 5l4 4" />
+              </svg>
+            </button>
+            <button className="btn btn-gold" onClick={openAddForm}>
+              Add athlete
+            </button>
+          </div>
         )}
+      </div>
+
+      <div className="roster-search">
+        <svg className="roster-search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m21 21-4.3-4.3" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search athletes by name..."
+        />
       </div>
 
       {error && <div className="roster-error">{error}</div>}
@@ -255,9 +310,13 @@ function Roster() {
         <div className="roster-empty">
           <p>No athletes yet. {isCoach ? 'Add your first athlete to start building your squad.' : 'Your coach will add athletes here.'}</p>
         </div>
+      ) : filteredAthletes.length === 0 ? (
+        <div className="roster-empty">
+          <p>No athletes match "{search}".</p>
+        </div>
       ) : (
         <div className="roster-grid">
-          {athletes.map((athlete) => (
+          {filteredAthletes.map((athlete) => (
             <div className="athlete-card" key={athlete.id}>
               <Link to={`/roster/${athlete.id}`} className="athlete-card-main">
                 <div className="athlete-number">
@@ -270,7 +329,7 @@ function Roster() {
                   {athlete.position && <span className="athlete-position">{athlete.position}</span>}
                 </div>
               </Link>
-              {isCoach && (
+              {isCoach && editMode && (
                 <div className="athlete-actions">
                   <button className="btn btn-ghost" onClick={() => openEditForm(athlete)}>
                     Edit

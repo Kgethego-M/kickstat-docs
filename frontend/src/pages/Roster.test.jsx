@@ -67,7 +67,9 @@ describe('Roster', () => {
       expect(screen.getByRole('heading', { name: 'Casey Keller' })).toBeInTheDocument()
     })
 
-    expect(screen.getAllByRole('button', { name: /Edit/i }).length).toBe(2)
+    fireEvent.click(screen.getByRole('button', { name: /Edit roster/i }))
+
+    expect(screen.getAllByRole('button', { name: /^Edit$/i }).length).toBe(2)
     expect(screen.getAllByRole('button', { name: /Remove/i }).length).toBe(2)
   })
 
@@ -123,6 +125,12 @@ describe('Roster', () => {
     })
 
     renderWithRouter(<Roster />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Edit roster/i })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Edit roster/i }))
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Remove/i })).toBeInTheDocument()

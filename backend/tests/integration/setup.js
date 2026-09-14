@@ -1,5 +1,5 @@
+require('dotenv').config()
 const { Pool } = require('pg')
-
 // Prefer TEST_DATABASE_URL if a dev has set one explicitly. Otherwise, fall
 // back to DATABASE_URL — which CI already sets correctly to the Postgres
 // service container's connection string, so this makes the same setup.js
