@@ -120,6 +120,15 @@ jobs:
                 const client = new Client({
                   host,
                   port: Number(port),
+                  // Full credentials: only a complete authenticated connect
+                  // proves the candidate is OUR service container — an auth
+                  // failure means it is some other Postgres and must be
+                  // rejected (the SASL "client password must be a string"
+                  // error on a bare probe means the server answered but the
+                  // probe could not authenticate).
+                  user: "test_user",
+                  password: "test_password",
+                  database: "sport_coaching_test",
                   connectionTimeoutMillis: 2000,
                 });
                 try {
@@ -130,17 +139,6 @@ jobs:
                   process.exit(0);
                 } catch (err) {
                   await client.end().catch(() => {});
-                  // A 5-char SQLSTATE (e.g. 3D000) means the server answered —
-                  // the address is reachable; the probe Client simply has no
-                  // database name, so the server rejected the session.
-                  if (err.code && /^[0-9A-Z]{5}$/.test(err.code)) {
-                    console.log(
-                      "Postgres reachable at " + c +
-                      " (server responded: " + err.code + ")"
-                    );
-                    writeEnv();
-                    process.exit(0);
-                  }
                   console.log(
                     "round " + round + ": not reachable at " + c +
                     " (" + (err.code || err.message) + ")"
