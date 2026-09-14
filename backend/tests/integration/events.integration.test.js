@@ -61,7 +61,20 @@ async function createAthlete(overrides = {}) {
   return res.rows[0]
 }
 
-async function createOtherSquad(clerkId) {
+// League/tournament creation and joining now require a squad to meet its
+// min_roster_size (defaults to 11) before it can field a team — seed enough
+// generic athletes onto a squad so those flows are actually reachable in
+// tests that don't otherwise care about roster size.
+async function seedRoster(targetSquadId, count = 11) {
+  for (let i = 0; i < count; i++) {
+    await pool.query(
+      `INSERT INTO athletes (squad_id, name, squad_number) VALUES ($1, $2, $3)`,
+      [targetSquadId, `Squad Player ${i + 1}`, i + 1]
+    )
+  }
+}
+
+async function createOtherSquad(clerkId, { rosterSize = 11 } = {}) {
   const userResult = await pool.query(
     'INSERT INTO users (clerk_id, role) VALUES ($1, $2) RETURNING id',
     [clerkId, 'coach']
@@ -70,6 +83,9 @@ async function createOtherSquad(clerkId) {
     'INSERT INTO squads (coach_id, name) VALUES ($1, $2) RETURNING id',
     [userResult.rows[0].id, `${clerkId} Squad`]
   )
+  if (rosterSize > 0) {
+    await seedRoster(squadResult.rows[0].id, rosterSize)
+  }
   return { userId: userResult.rows[0].id, squadId: squadResult.rows[0].id }
 }
 
@@ -194,6 +210,8 @@ describe('US16 (integration) — near-real-time timeline', () => {
 
 describe('League / tournament events', () => {
   test('AC: creates a league event and auto-adds the creator as the first team', async () => {
+    await seedRoster(squadId)
+
     const res = await request(app)
       .post('/api/events')
       .set('x-test-clerk-user-id', 'test_clerk_user')
@@ -218,6 +236,7 @@ describe('League / tournament events', () => {
   })
 
   test('AC: joining fills the league and auto-generates a round-robin schedule', async () => {
+    await seedRoster(squadId)
     await createOtherSquad('coach_two')
     await createOtherSquad('coach_three')
 
@@ -258,6 +277,7 @@ describe('League / tournament events', () => {
   })
 
   test('AC: standings reflect fixture results using standard football rules', async () => {
+    await seedRoster(squadId)
     await createOtherSquad('coach_two')
     await createOtherSquad('coach_three')
 
@@ -306,6 +326,7 @@ describe('League / tournament events', () => {
   })
 
   test('AC: top scorers and assisters aggregate across league fixtures', async () => {
+    await seedRoster(squadId)
     await createOtherSquad('coach_two')
 
     const created = await request(app)

@@ -299,7 +299,13 @@ router.post('/', requireAuth(), async (req, res) => {
     // Training sessions don't need a full squad — but a match, league, or
     // tournament all involve this squad actually fielding a team, so they
     // require the roster to meet the squad's configured minimum size first.
-    if (eventFormat !== 'training') {
+    // "training" can be signalled either via format (new events) or the
+    // legacy event_type/type field (older callers that never set format),
+    // so both are checked here to avoid misclassifying a training session
+    // as a match just because format was left unset.
+    const requestedTypeValue = (type || event_type || '').toLowerCase();
+    const isTrainingRequest = eventFormat === 'training' || requestedTypeValue === 'training';
+    if (!isTrainingRequest) {
       const roster = await getRosterStatus(pool, squadId);
       if (!roster.meetsMinimum) {
         return res.status(400).json({

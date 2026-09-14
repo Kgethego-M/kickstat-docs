@@ -6,12 +6,14 @@ import { pool, resetDatabase } from './setup'
 import eventsRouter from '../../src/routes/events'
 import fixturesRouter from '../../src/routes/fixtures'
 import athletesRouter from '../../src/routes/athletes'
+import squadsRouter from '../../src/routes/squads'
 
 const app = express()
 app.use(express.json())
 app.use('/api/events', eventsRouter)
 app.use('/api/fixtures', fixturesRouter)
 app.use('/api/athletes', athletesRouter)
+app.use('/api/squads', squadsRouter)
 
 beforeAll(async () => {
   try {
@@ -33,7 +35,27 @@ afterAll(async () => {
   await pool.end()
 })
 
+// League/tournament creation and joining now require a squad to meet its
+// min_roster_size (defaults to 11) before it can field a team — seed enough
+// generic athletes onto a squad so those flows are actually reachable here.
+async function seedRoster(targetSquadId, count = 11) {
+  for (let i = 0; i < count; i++) {
+    await pool.query(
+      `INSERT INTO athletes (squad_id, name, squad_number) VALUES ($1, $2, $3)`,
+      [targetSquadId, `Squad Player ${i + 1}`, i + 1]
+    )
+  }
+}
+
 async function createLeague() {
+  // Resolve (self-heal) the creator's own squad first via GET /api/squads/mine,
+  // so we have a squadId to seed athletes onto *before* creating the league —
+  // the league-creation endpoint now requires the roster minimum up front.
+  const mySquad = await request(app)
+    .get('/api/squads/mine')
+    .set('x-test-clerk-user-id', 'test_clerk_user')
+  await seedRoster(mySquad.body.id)
+
   const created = await request(app)
     .post('/api/events')
     .set('x-test-clerk-user-id', 'test_clerk_user')
@@ -52,6 +74,7 @@ async function createLeague() {
     'INSERT INTO squads (coach_id, name) VALUES ((SELECT id FROM users WHERE clerk_id = $1), $2) RETURNING id',
     ['coach_two', 'Coach Two Squad']
   )
+  await seedRoster(squad2.rows[0].id)
 
   await request(app)
     .post(`/api/events/${eventId}/join`)
