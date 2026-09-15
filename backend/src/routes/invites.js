@@ -40,15 +40,26 @@ async function createInvite(pool, { email, squadId, invitedBy, role = 'assistant
 
   const squadResult = await pool.query('SELECT name FROM squads WHERE id = $1', [squadId])
   const squadName = squadResult.rows[0]?.name || 'the squad'
-  const inviteLink = process.env.FRONTEND_URL + '/invite/' + result.rows[0].token
 
-  await sendInviteEmail({ to: email, role, inviteLink, squadName })
+  if (!process.env.FRONTEND_URL) {
+    // Fail loudly here instead of silently baking "undefined" into the
+    // link inside the invite email — this is a deploy config problem
+    // (FRONTEND_URL missing on the hosting platform), not a per-request
+    // one, so every invite would otherwise ship a broken link.
+    console.error(
+      'FRONTEND_URL is not set — invite link would be broken. Set it in the backend environment.'
+    )
+  }
+  const inviteLink = `${process.env.FRONTEND_URL || ''}/invite/${result.rows[0].token}`
+
+  const emailSent = await sendInviteEmail({ to: email, role, inviteLink, squadName })
 
   return {
     inviteId: result.rows[0].id,
     // Still returned so the coach has a manual fallback/confirmation — the
     // frontend no longer treats this as the primary way to deliver it.
     inviteLink,
+    emailSent,
   }
 }
 

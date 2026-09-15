@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { Navigate } from 'react-router-dom'
 import Layout from '../components/Layout'
+import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
 import './Live.css'
 
@@ -26,7 +27,7 @@ function Live() {
   if (liveEvent === undefined) {
     return (
       <Layout>
-        <p className="roster-status">Checking for a live event...</p>
+        <Loader label="Checking for a live event..." />
       </Layout>
     )
   }
