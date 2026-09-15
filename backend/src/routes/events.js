@@ -688,6 +688,10 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
+    if (event.status === 'cancelled') {
+      return res.status(400).json({ error: 'Event is cancelled' });
+    }
+
     if (LEAGUE_FORMATS.has(event.format)) {
       return res.status(400).json({ error: 'Use fixture endpoints to log league/tournament actions' });
     }

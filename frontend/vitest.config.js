@@ -10,8 +10,10 @@ export default defineConfig({
     setupFiles: './src/test-setup.js',
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html', 'lcov'],
-      exclude: ['src/test-setup.js', '**/*.test.jsx', 'vitest.config.js'],
+      // json-summary produces coverage-summary.json, which the CI coverage
+      // dashboard reads to show line-coverage percentages on its index page.
+      reporter: ['text', 'html', 'json-summary', 'lcov'],
+      exclude: ['src/test-setup.js', '**/*.test.jsx', '**/*.test.js', 'vitest.config.js'],
     },
   },
   define: {

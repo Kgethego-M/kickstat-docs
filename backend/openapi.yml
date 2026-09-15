@@ -245,6 +245,78 @@ paths:
       responses:
         '201':
           description: Log entry created
+        '400':
+          description: Fixture is cancelled
+
+  /api/injuries:
+    post:
+      summary: Log an athlete injury with a return-to-play estimate (US29)
+      tags: [Injuries]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [athlete_id, description, date_sustained]
+              properties:
+                athlete_id: { type: integer }
+                description: { type: string, example: "Moderate ankle sprain" }
+                date_sustained: { type: string, format: date }
+                severity: { type: string, enum: [minor, moderate, severe], default: moderate }
+      responses:
+        '201':
+          description: Injury created — response includes the estimated return_date, estimation_min_weeks, estimation_max_weeks, and estimation_basis
+        '400':
+          description: Validation error (missing fields or invalid severity)
+        '404':
+          description: Athlete not found in your squad
+
+  /api/injuries/{id}:
+    patch:
+      summary: Override the return date, edit details, or clear the injury (coach only, US30/US31)
+      tags: [Injuries]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description: { type: string }
+                date_sustained: { type: string, format: date }
+                severity: { type: string, enum: [minor, moderate, severe] }
+                return_date: { type: string, format: date }
+                clear: { type: boolean, description: Set true to manually clear the injury early }
+      responses:
+        '200':
+          description: Updated injury
+        '403':
+          description: Not authorized (assistant role)
+    delete:
+      summary: Remove a mis-logged injury (coach only)
+      tags: [Injuries]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '204':
+          description: Injury removed
+        '403':
+          description: Not authorized (assistant role)
 
   /api/invites:
     post:

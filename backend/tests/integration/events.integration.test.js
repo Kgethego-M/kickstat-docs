@@ -128,6 +128,22 @@ describe('US13 (integration) — log a scoring moment during a live event', () =
 
     expect(res.status).toBe(400)
   })
+
+  test('US6 — a cancelled event no longer accepts new log entries', async () => {
+    const event = await createEvent()
+    await pool.query("UPDATE events SET status = 'cancelled' WHERE id = $1", [event.id])
+    const athlete = await createAthlete()
+
+    const res = await request(app)
+      .post(`/api/events/${event.id}/logs`)
+      .send({ athlete_id: athlete.id, action_type: 'goal' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('Event is cancelled')
+
+    const stored = await pool.query('SELECT * FROM log_entries WHERE event_id = $1', [event.id])
+    expect(stored.rows).toHaveLength(0)
+  })  
 })
 
 describe('US14 (integration) — edit or undo a log entry', () => {

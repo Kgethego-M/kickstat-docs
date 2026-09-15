@@ -157,6 +157,27 @@ describe('US15/US16 — fixture detail and live logging', () => {
     expect(res.status).toBe(400)
   })
 
+  test('US6 — a cancelled fixture no longer accepts new log entries', async () => {
+    const { fixtureId } = await createLeague()
+    await pool.query("UPDATE fixtures SET status = 'cancelled' WHERE id = $1", [fixtureId])
+
+    const athleteRes = await request(app)
+      .post('/api/athletes')
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({ name: 'Striker' })
+
+    const res = await request(app)
+      .post(`/api/fixtures/${fixtureId}/logs`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({ athlete_id: athleteRes.body.id, action_type: 'goal' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('Fixture is cancelled')
+
+    const stored = await pool.query('SELECT * FROM log_entries WHERE fixture_id = $1', [fixtureId])
+    expect(stored.rows).toHaveLength(0)
+  })  
+
   test('AC: edit and undo a fixture log entry', async () => {
     const { fixtureId } = await createLeague()
 
