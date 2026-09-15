@@ -45,6 +45,14 @@ jobs:
           flags: frontend
           fail_ci_if_error: false
 
+      - name: Upload frontend coverage report
+        if: always()
+        uses: https://github.com/christopherHX/gitea-upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+          if-no-files-found: error
+
   backend-ci:
     name: Backend Lint & Test
     runs-on: ubuntu-latest
@@ -186,18 +194,129 @@ jobs:
           path: backend/coverage
           if-no-files-found: error
 
+  coverage-dashboard:
+    name: Coverage Dashboard
+    # Merges the backend and frontend HTML coverage reports (uploaded as
+    # artifacts by the two test jobs) into one Netlify site with a landing
+    # page showing each suite's line coverage. Uses the artifact download
+    # API added in Gitea 1.24 (christopherHX/gitea-download-artifact).
+    # Runs only when both test jobs passed, so the dashboard never shows
+    # a failed or partial run, and it is not part of the deploy chain.
+    needs: [frontend-ci, backend-ci]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download backend coverage
+        uses: https://github.com/christopherHX/gitea-download-artifact@v4
+        with:
+          name: backend-coverage
+          path: dashboard/backend
+
+      - name: Download frontend coverage
+        uses: https://github.com/christopherHX/gitea-download-artifact@v4
+        with:
+          name: frontend-coverage
+          path: dashboard/frontend
+
+      - name: Build dashboard index
+        run: |
+          cat > gen-dashboard.ci.js <<'EOF'
+          const fs = require("fs");
+          const path = require("path");
+
+          // One card per suite. Line-coverage percentages come from each
+          // suite's coverage-summary.json (Vitest json-summary reporter);
+          // a missing summary degrades to "n/a" instead of failing.
+          const suites = [
+            {
+              key: "backend",
+              title: "Backend API",
+              subtitle: "Express + PostgreSQL · Vitest integration tests",
+              href: "./backend/index.html",
+            },
+            {
+              key: "frontend",
+              title: "Frontend",
+              subtitle: "React + Vite · Vitest component tests",
+              href: "./frontend/index.html",
+            },
+          ];
+
+          function readLinePct(key) {
+            try {
+              const summary = JSON.parse(
+                fs.readFileSync(path.join("dashboard", key, "coverage-summary.json"), "utf8")
+              );
+              const pct = summary && summary.total && summary.total.lines.pct;
+              return typeof pct === "number" ? pct.toFixed(1) + "%" : "n/a";
+            } catch (err) {
+              return "n/a";
+            }
+          }
+
+          const cards = suites
+            .map(function (s) {
+              return (
+                '<a class="card" href="' + s.href + '">' +
+                "<h2>" + s.title + "</h2>" +
+                '<p class="pct">' + readLinePct(s.key) + "</p>" +
+                '<p class="sub">' + s.subtitle + "</p>" +
+                '<p class="open">Open full report</p>' +
+                "</a>"
+              );
+            })
+            .join("\n");
+
+          const html = [
+            "<!doctype html>",
+            '<html lang="en">',
+            "<head>",
+            '<meta charset="utf-8">',
+            '<meta name="viewport" content="width=device-width, initial-scale=1">',
+            "<title>KickStat Test Coverage Dashboard</title>",
+            "<style>",
+            "body{font-family:system-ui,sans-serif;margin:0;background:#0f172a;color:#e2e8f0;}",
+            "main{max-width:860px;margin:0 auto;padding:3rem 1.5rem;}",
+            "h1{margin:0 0 .25rem;}",
+            "p.note{color:#94a3b8;margin:0 0 2rem;}",
+            "div.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.25rem;}",
+            "a.card{display:block;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.5rem;color:inherit;text-decoration:none;}",
+            "a.card:hover{border-color:#ca8a04;}",
+            "h2{margin:0 0 .75rem;font-size:1.15rem;}",
+            "p.pct{font-size:2.25rem;font-weight:700;margin:0 0 .5rem;color:#facc15;}",
+            "p.sub{color:#94a3b8;margin:0 0 1rem;}",
+            "p.open{margin:0;color:#facc15;}",
+            "</style>",
+            "</head>",
+            "<body>",
+            "<main>",
+            "<h1>KickStat Test Coverage Dashboard</h1>",
+            '<p class="note">Published automatically by Gitea Actions after every green CI run · ' +
+              new Date().toISOString() +
+              "</p>",
+            '<div class="grid">',
+            cards,
+            "</div>",
+            "</main>",
+            "</body>",
+            "</html>",
+          ].join("\n");
+
+          fs.writeFileSync(path.join("dashboard", "index.html"), html);
+          console.log("Wrote dashboard/index.html");
+          EOF
+          node gen-dashboard.ci.js
+          rm gen-dashboard.ci.js
+
       - name: Publish coverage dashboard
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_COVERAGE_SITE_ID: ${{ secrets.NETLIFY_COVERAGE_SITE_ID }}
-        # A broken Netlify token — or an unreachable Netlify API from this
-        # runner's network — must not fail the whole backend job or hang it
-        # indefinitely. The coverage artifact and Codecov upload already
-        # succeeded above. "timeout" caps this at 60s so a network issue
-        # fails fast with a clear message instead of hanging the job.
+        # Same fail-soft policy as the old backend-only step: a Netlify
+        # outage or bad token must not turn CI red — the coverage artifacts
+        # and Codecov uploads are the source of truth.
         run: |
           timeout 60 npx --yes netlify-cli deploy \
-            --dir=coverage \
+            --dir=dashboard \
             --prod \
             --site="$NETLIFY_COVERAGE_SITE_ID" \
             --auth="$NETLIFY_AUTH_TOKEN" \

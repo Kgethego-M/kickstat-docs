@@ -147,13 +147,24 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ```sh
 cd backend
-npm test          # Run all integration tests
-npm run lint      # Lint backend code
+npm test              # Run all integration tests
+npm run test:coverage # Integration tests + HTML coverage report (backend/coverage/index.html)
+npm run lint          # Lint backend code
 
 cd frontend
-npm run lint      # Lint frontend code
-npm run build     # Production build
+npm test              # Run all component tests
+npm run test:coverage # Component tests + HTML coverage report (frontend/coverage/index.html)
+npm run lint          # Lint frontend code
+npm run build         # Production build
 ```
+
+### Coverage dashboard
+
+Every green CI run publishes the combined backend + frontend coverage reports
+to [kickstat-coverage.netlify.app](https://kickstat-coverage.netlify.app). The
+landing page shows each suite's line coverage with links to the full HTML
+reports. Coverage is also uploaded to Codecov and stored as workflow
+artifacts (`backend-coverage`, `frontend-coverage`) on each CI run.
 
 ## API Endpoints
 
@@ -213,6 +224,11 @@ CI auto-deploy is wired through three secrets stored in Gitea
 | `CLOUDFLARE_API_TOKEN` | Cloudflare custom token (Account → Cloudflare Pages → Edit) — lets CI run `wrangler pages deploy` |
 | `CLOUDFLARE_ACCOUNT_ID` | 32-char Cloudflare account ID |
 
+Coverage publishing uses two more secrets, separate from auto-deploy and
+failing soft when unset: `CODECOV_TOKEN` (Codecov upload) and
+`NETLIFY_AUTH_TOKEN` + `NETLIFY_COVERAGE_SITE_ID` (publishing the combined
+coverage dashboard).
+
 Environment variables configured on the Render service: `DATABASE_URL` (Neon
 direct connection string — pooling **off**, no `-pooler` host, migrations break
 on the pooled URL), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`,
@@ -227,7 +243,7 @@ Key deployment files in this repo:
 | `frontend/.env.production` | `VITE_API_URL` + `VITE_CLERK_PUBLISHABLE_KEY`, baked into the bundle at build time |
 | `frontend/public/_redirects` | SPA fallback (`/* /index.html 200`) |
 | `wrangler.jsonc` | Cloudflare Pages config (`pages_build_output_dir: frontend/dist`) |
-| `.gitea/workflows/ci.yml` | CI pipeline: lint/tests, Postgres address probe, Deploy Production job |
+| `.gitea/workflows/ci.yml` | CI pipeline: lint/tests + coverage for both apps, Postgres address probe, combined coverage dashboard publish, Deploy Production job |
 
 Never push directly to the GitHub mirror — Gitea `main` is the single source of
 truth and CI keeps the mirror in sync.
