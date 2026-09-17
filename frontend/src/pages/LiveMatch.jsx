@@ -52,6 +52,13 @@ function useMatchDetail() {
 
   const activeStatus = isFixture ? detail?.fixture?.status : detail?.event?.status
   const activeDate = isFixture ? detail?.fixture?.event_date : detail?.event?.event_date
+  const activeStartedAt = isFixture ? detail?.fixture?.started_at : detail?.event?.started_at
+
+  // The live clock anchors on when the event actually went live, falling
+  // back to the scheduled kickoff for rows that predate started_at. Using
+  // the scheduled time alone is what pinned the counter at 0' whenever an
+  // event started early/late or without a time.
+  const clockAnchor = activeStartedAt || activeDate
 
   useEffect(() => {
     if (activeStatus === 'live') {
@@ -76,13 +83,13 @@ function useMatchDetail() {
   }, [detail?.timeline])
 
   useEffect(() => {
-    if (!activeDate) return
-    setClockMinute(elapsedMinutes(activeDate))
+    if (!clockAnchor) return
+    setClockMinute(elapsedMinutes(clockAnchor))
     clockRef.current = setInterval(() => {
-      setClockMinute(elapsedMinutes(activeDate))
+      setClockMinute(elapsedMinutes(clockAnchor))
     }, 30000)
     return () => clearInterval(clockRef.current)
-  }, [activeDate])
+  }, [clockAnchor])
 
   return {
     isFixture,
@@ -206,7 +213,10 @@ function LiveMatch() {
   }
 
   async function handleEndFixture() {
-    if (!window.confirm('End this fixture? No more actions can be logged.')) return
+    const message = isFixture
+      ? 'End this fixture? No more actions can be logged.'
+      : 'End this event? No more actions can be logged.'
+    if (!window.confirm(message)) return
     setEndingFixture(true)
     setError('')
     try {
@@ -276,14 +286,14 @@ function LiveMatch() {
               <span style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#e04040' }}>Live</span>
             </span>
           )}
-          {isFixture && event.status === 'live' && canLog && (
+          {activeStatus === 'live' && canLog && (
             <button
               type="button"
               className="btn btn-danger"
               disabled={endingFixture}
               onClick={handleEndFixture}
             >
-              {endingFixture ? 'Ending...' : 'End fixture'}
+              {endingFixture ? 'Ending...' : (isFixture ? 'End fixture' : 'End event')}
             </button>
           )}
           <Link to={summaryPath} className="btn btn-ghost">Summary</Link>

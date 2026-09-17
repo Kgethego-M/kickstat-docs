@@ -24,6 +24,27 @@ const statusLabel = {
   full: 'Full',
 }
 
+// '2026-09-17T17:00:00.000Z' -> '2026-09-17T18:00' in the browser's timezone,
+// suitable as the value of a datetime-local input.
+function toLocalInputValue(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 16)
+}
+
+function formatDateTime(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
   const { event, result, timeline } = detail
   const [logForm, setLogForm] = useState(emptyLogForm)
@@ -32,6 +53,46 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
   const [logError, setLogError] = useState('')
   const [error, setError] = useState('')
   const [statusSaving, setStatusSaving] = useState(false)
+  const [editingEvent, setEditingEvent] = useState(false)
+  const [eventForm, setEventForm] = useState(null)
+  const [eventSaving, setEventSaving] = useState(false)
+
+  function openEventEdit() {
+    setEventForm({
+      name: event.event_type === 'match' ? (event.opponent || '') : (event.title || ''),
+      event_date: toLocalInputValue(event.event_date),
+      location: event.location || '',
+      duration_minutes: String(event.duration_minutes ?? 90),
+    })
+    setEditingEvent(true)
+  }
+
+  async function handleEventEditSubmit(e) {
+    e.preventDefault()
+    if (!eventForm) return
+    setEventSaving(true)
+    setError('')
+    const body = {
+      event_date: eventForm.event_date,
+      location: eventForm.location.trim() || null,
+      duration_minutes: Number(eventForm.duration_minutes) || 90,
+    }
+    if (event.event_type === 'match') {
+      body.opponent = eventForm.name.trim() || null
+    } else {
+      body.title = eventForm.name.trim() || null
+    }
+    try {
+      await apiRequest(`/api/events/${id}`, { method: 'PATCH', body, getToken })
+      setEditingEvent(false)
+      setEventForm(null)
+      onChange()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setEventSaving(false)
+    }
+  }
 
   async function handleStatusChange(status) {
     setStatusSaving(true)
@@ -145,8 +206,63 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
               End event
             </button>
          )}
+          {(event.status === 'scheduled' || event.status === 'live') && (
+            <button className="btn btn-ghost" onClick={openEventEdit}>
+              Edit details
+            </button>
+          )}
         </div>
       </div>
+
+      {editingEvent && eventForm && (
+        <form className="roster-form" onSubmit={handleEventEditSubmit}>
+          <h3>Edit event</h3>
+          <div className="roster-form-grid">
+            <label>
+              {event.event_type === 'match' ? 'Opponent' : 'Title'}
+              <input
+                type="text"
+                value={eventForm.name}
+                onChange={(e) => setEventForm({ ...eventForm, name: e.target.value })}
+              />
+            </label>
+            <label>
+              Date &amp; time
+              <input
+                type="datetime-local"
+                value={eventForm.event_date}
+                onChange={(e) => setEventForm({ ...eventForm, event_date: e.target.value })}
+                required
+              />
+            </label>
+            <label>
+              Location
+              <input
+                type="text"
+                value={eventForm.location}
+                onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
+              />
+            </label>
+            <label>
+              Duration (minutes)
+              <input
+                type="number"
+                min="1"
+                value={eventForm.duration_minutes}
+                onChange={(e) => setEventForm({ ...eventForm, duration_minutes: e.target.value })}
+              />
+            </label>
+          </div>
+          <div className="roster-form-actions">
+            <button type="button" className="btn btn-ghost" onClick={() => { setEditingEvent(false); setEventForm(null) }}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-gold" disabled={eventSaving}>
+              {eventSaving ? 'Saving...' : 'Save changes'}
+            </button>
+          </div>
+        </form>
+      )}
 
       {event.location && <WeatherWidget location={event.location} />}
 
@@ -261,7 +377,33 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
   const { event, teams, fixtures, standings, stats } = detail
   const [joining, setJoining] = useState(false)
   const [startingFixtureId, setStartingFixtureId] = useState(null)
+  const [dateDrafts, setDateDrafts] = useState({})
+  const [savingFixtureDateId, setSavingFixtureDateId] = useState(null)
   const [error, setError] = useState('')
+
+  async function handleSaveFixtureDate(fixtureId) {
+    const value = dateDrafts[fixtureId] || ''
+    if (!value.trim()) return
+    setSavingFixtureDateId(fixtureId)
+    setError('')
+    try {
+      await apiRequest(`/api/fixtures/${fixtureId}`, {
+        method: 'PATCH',
+        body: { event_date: value },
+        getToken,
+      })
+      setDateDrafts((drafts) => {
+        const next = { ...drafts }
+        delete next[fixtureId]
+        return next
+      })
+      onChange()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingFixtureDateId(null)
+    }
+  }
 
   async function handleJoin() {
     setJoining(true)
@@ -385,6 +527,28 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
                 <span className={`event-status event-status-${fixture.status}`}>
                   {statusLabel[fixture.status] || fixture.status}
                 </span>
+                {fixture.is_home_mine && fixture.status === 'scheduled' ? (
+                  <div className="fixture-kickoff-edit">
+                    <input
+                      type="datetime-local"
+                      aria-label="Fixture kickoff"
+                      value={dateDrafts[fixture.id] ?? toLocalInputValue(fixture.event_date)}
+                      onChange={(e) => setDateDrafts({ ...dateDrafts, [fixture.id]: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-gold"
+                      disabled={savingFixtureDateId === fixture.id || !(dateDrafts[fixture.id] ?? fixture.event_date)}
+                      onClick={() => handleSaveFixtureDate(fixture.id)}
+                    >
+                      {savingFixtureDateId === fixture.id ? 'Saving...' : 'Save kickoff'}
+                    </button>
+                  </div>
+                ) : (
+                  <span className="fixture-kickoff">
+                    {fixture.event_date ? formatDateTime(fixture.event_date) : 'Kickoff TBC'}
+                  </span>
+                )}
                 {fixture.status === 'scheduled' && fixture.is_home_mine && (
                   <button
                     className="btn btn-gold"
@@ -477,7 +641,11 @@ function EventDetail() {
 
   // Poll while a simple event is live so the dashboard/timeline stays near-real-time.
   useEffect(() => {
-    if (detail?.event?.status === 'live' && detail?.event?.format === 'match') {
+    if (
+      detail?.event?.status === 'live' &&
+      detail?.event?.format !== 'league' &&
+      detail?.event?.format !== 'tournament'
+    ) {
       pollRef.current = setInterval(loadDetail, 5000)
       return () => clearInterval(pollRef.current)
     }

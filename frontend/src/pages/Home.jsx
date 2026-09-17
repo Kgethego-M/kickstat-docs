@@ -7,7 +7,7 @@ function Home() {
     <div className="home-shell">
       <div className="home-panel">
         <span className="home-eyebrow">Matchday-ready</span>
-        <h1 className="home-title">Sport Coaching Tool</h1>
+        <h1 className="home-title">KickStat</h1>
         <p className="home-subtitle">
           Manage your squad, run live matchday logging, and keep every result on record.
         </p>

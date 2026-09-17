@@ -252,6 +252,9 @@ router.get('/', requireAuth(), async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ error: err.message });
+    }
     console.error('Error fetching events:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
@@ -291,6 +294,13 @@ router.post('/', requireAuth(), async (req, res) => {
     }
 
     const timestamp = event_time ? `${event_date}T${event_time}` : event_date;
+
+    // Backlog: don't allow scheduling events in the past. The one-minute
+    // grace covers a datetime-local value that ticks over while the form
+    // is being submitted.
+    if (new Date(timestamp).getTime() < Date.now() - 60 * 1000) {
+      return res.status(400).json({ error: 'Cannot schedule an event in the past' });
+    }
 
     const { userId: clerkUserId } = getAuth(req);
     const userId = await getOrCreateUserId(pool, clerkUserId);
@@ -438,6 +448,7 @@ router.patch('/:id', requireAuth(), async (req, res) => {
            location = COALESCE($5, location),
            status = COALESCE($6, status),
            duration_minutes = COALESCE($7, duration_minutes),
+           started_at = CASE WHEN $6 = 'live' THEN COALESCE(started_at, now()) ELSE started_at END,
            updated_at = now()
        WHERE id = $8 RETURNING *`,
       [title, opponent, type || event_type || null, timestamp, location, status, duration_minutes ? Number(duration_minutes) : null, req.params.id]
@@ -690,6 +701,20 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
 
     if (event.status === 'cancelled') {
       return res.status(400).json({ error: 'Event is cancelled' });
+    }
+
+    // Backlog: an event can only "happen" once its scheduled time is reached.
+    // A log arriving before kickoff is rejected; one arriving after it starts
+    // the event automatically (same as the auto-transition sweep in app.js).
+    if (event.status === 'scheduled') {
+      if (event.event_date && new Date(event.event_date).getTime() > Date.now()) {
+        return res.status(400).json({ error: 'This event has not started yet' });
+      }
+      await pool.query(
+        "UPDATE events SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
+        [event.id]
+      );
+      event.status = 'live';
     }
 
     if (LEAGUE_FORMATS.has(event.format)) {

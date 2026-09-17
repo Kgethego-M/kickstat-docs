@@ -140,7 +140,7 @@ describe('US5 — create a match or training event', () => {
       .send({
         title: 'Tuesday Training',
         type: 'training',
-        event_date: '2026-08-25',
+        event_date: '2027-02-25',
         event_time: '17:00',
         location: 'Wits Main Oval',
       })

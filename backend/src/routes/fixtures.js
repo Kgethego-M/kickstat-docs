@@ -86,6 +86,7 @@ router.patch('/:id', requireAuth(), async (req, res) => {
       `UPDATE fixtures
        SET event_date = COALESCE($1, event_date),
            status = COALESCE($2, status),
+           started_at = CASE WHEN $2 = 'live' THEN COALESCE(started_at, now()) ELSE started_at END,
            updated_at = now()
        WHERE id = $3 RETURNING *`,
       [event_date || null, status || null, req.params.id]
@@ -142,6 +143,19 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
     // Only the home team logs actions in a fixture.
     if (fixture.home_squad_id !== squadId) {
       return res.status(403).json({ error: 'Only the home team can log actions' });
+    }
+
+    // Same rule as events: no logging before the scheduled kickoff; a log
+    // after kickoff starts the fixture automatically.
+    if (fixture.status === 'scheduled') {
+      if (fixture.event_date && new Date(fixture.event_date).getTime() > Date.now()) {
+        return res.status(400).json({ error: 'This fixture has not started yet' });
+      }
+      await pool.query(
+        "UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
+        [fixture.id]
+      );
+      fixture.status = 'live';
     }
 
     if (athlete_id) {

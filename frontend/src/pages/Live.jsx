@@ -22,6 +22,10 @@ function Live() {
       }
     }
     find()
+    // Keep checking so an event the backend sweep auto-starts pulls the
+    // coach into the live view without a manual refresh.
+    const poll = setInterval(find, 15000)
+    return () => clearInterval(poll)
   }, [getToken])
 
   if (liveEvent === undefined) {

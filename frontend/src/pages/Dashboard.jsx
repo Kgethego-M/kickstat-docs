@@ -6,8 +6,6 @@ import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
 import './Dashboard.css'
 
-const API_URL = import.meta.env.VITE_API_URL
-
 function Dashboard() {
   const { user } = useUser()
   const { getToken } = useAuth()
@@ -101,17 +99,11 @@ function Dashboard() {
     setInviteLink(null)
 
     try {
-      const token = await getToken()
-      const res = await fetch(API_URL + '/api/invites', {
+      const data = await apiRequest('/api/invites', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + token,
-        },
-        body: JSON.stringify({ email }),
+        body: { email },
+        getToken,
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to create invite')
       setInviteLink(data.inviteLink)
       setEmail('')
     } catch (err) {

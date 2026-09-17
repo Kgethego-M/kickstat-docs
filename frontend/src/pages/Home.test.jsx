@@ -25,7 +25,7 @@ describe('Home', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByRole('heading', { name: 'Sport Coaching Tool' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'KickStat' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Sign in/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Create account/i })).toBeInTheDocument()
   })
@@ -39,7 +39,7 @@ describe('Home', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByRole('heading', { name: 'Sport Coaching Tool' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'KickStat' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Sign in/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Create account/i })).not.toBeInTheDocument()
   })

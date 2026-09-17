@@ -93,8 +93,10 @@ function Events() {
   const [proLoading, setProLoading] = useState(false)
   const [proError, setProError] = useState('')
 
-  const loadEvents = useCallback(async () => {
-    setLoading(true)
+  const loadEvents = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true)
+    }
     setError('')
     try {
       const data = await apiRequest('/api/events', { getToken })
@@ -119,6 +121,10 @@ function Events() {
   useEffect(() => {
     loadEvents()
     loadSquad()
+    // Re-poll so events the backend auto-transitioned to live (the sweep in
+    // app.js) show up without a manual refresh.
+    const poll = setInterval(() => loadEvents(true), 30000)
+    return () => clearInterval(poll)
   }, [loadEvents, loadSquad])
 
   function openForm() {
@@ -317,6 +323,14 @@ function Events() {
 
   const monthLabel = calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 
+  // Earliest selectable kickoff is "now" — mirroring the backend's
+  // "cannot schedule an event in the past" validation.
+  const nowLocal = useMemo(() => {
+    // eslint-disable-next-line react-hooks/purity -- one-time snapshot for the datetime-local `min` attribute, computed once on mount
+    const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    return d.toISOString().slice(0, 16)
+  }, [])
+
   return (
     <Layout>
       <div className="roster-header">
@@ -443,6 +457,7 @@ function Events() {
               Date &amp; time
               <input
                 type="datetime-local"
+                min={nowLocal}
                 value={form.event_date}
                 onChange={(e) => setForm({ ...form, event_date: e.target.value })}
                 required

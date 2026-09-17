@@ -65,26 +65,29 @@ app.get('/api/me', requireAuth(), (req, res) => {
 // ---- Auto-transition sweep ----
 // Runs periodically so events don't require a manual "Start live"/"End event"
 // click: scheduled -> live once event_date passes, live -> completed once
-// event_date + duration_minutes passes. Manual buttons on the frontend still
-// work as an override (e.g. starting a delayed match early/late).
+// started_at + duration_minutes passes (falling back to event_date for rows
+// that went live before started_at existed). Manual buttons on the frontend
+// still work as an override (e.g. starting a delayed match early/late).
 const sweepPool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function runAutoTransitionSweep() {
   try {
-    // Simple events and league containers
+    // Simple events only. League/tournament containers also pass through a
+    // 'scheduled' state (while teams are joining) and must never auto-start;
+    // their fixtures transition individually below.
     await sweepPool.query(
-      `UPDATE events SET status = 'live', updated_at = now()
-       WHERE status = 'scheduled' AND event_date <= now()`
+      `UPDATE events SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now()
+       WHERE status = 'scheduled' AND format IN ('match', 'training') AND event_date <= now()`
     );
     await sweepPool.query(
       `UPDATE events SET status = 'completed', updated_at = now()
-       WHERE status = 'live'
-         AND event_date + (COALESCE(duration_minutes, 90) || ' minutes')::interval <= now()`
+       WHERE status = 'live' AND format IN ('match', 'training')
+         AND COALESCE(started_at, event_date) + (COALESCE(duration_minutes, 90) || ' minutes')::interval <= now()`
     );
 
     // League/tournament fixtures
     await sweepPool.query(
-      `UPDATE fixtures SET status = 'live', updated_at = now()
+      `UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now()
        WHERE status = 'scheduled' AND event_date <= now()`
     );
     await sweepPool.query(
@@ -93,7 +96,7 @@ async function runAutoTransitionSweep() {
        FROM events e
        WHERE f.status = 'live'
          AND f.event_id = e.id
-         AND f.event_date + (COALESCE(e.duration_minutes, 90) || ' minutes')::interval <= now()`
+         AND COALESCE(f.started_at, f.event_date) + (COALESCE(e.duration_minutes, 90) || ' minutes')::interval <= now()`
     );
   } catch (err) {
     console.error('Auto-transition sweep failed:', err.message);

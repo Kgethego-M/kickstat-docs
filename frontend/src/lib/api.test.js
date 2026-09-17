@@ -30,14 +30,19 @@ describe('apiRequest', () => {
     })
 
     expect(getToken).toHaveBeenCalledOnce()
-    expect(globalThis.fetch).toHaveBeenCalledWith('http://localhost:5001/api/squads/mine', {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer test-token',
-      },
-      body: JSON.stringify({ name: 'Golden Lions' }),
-    })
+    // objectContaining: apiRequest also passes an AbortSignal for the
+    // request-timeout guard, which isn't relevant to this assertion.
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://localhost:5001/api/squads/mine',
+      expect.objectContaining({
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer test-token',
+        },
+        body: JSON.stringify({ name: 'Golden Lions' }),
+      })
+    )
   })
 
   it('returns the parsed JSON response', async () => {
@@ -85,5 +90,25 @@ describe('apiRequest', () => {
     await expect(apiRequest('/api/account/me', { getToken: vi.fn() })).rejects.toThrow(
       'Request failed with status 502'
     )
+  })
+
+  it('rejects with a clear error when the auth token never settles', async () => {
+    // Regression: Clerk's dev-browser handshake can hang in Safari (blocked
+    // third-party storage), leaving buttons disabled forever with no feedback.
+    vi.useFakeTimers()
+    try {
+      const hangingGetToken = vi.fn().mockReturnValue(new Promise(() => {}))
+      const promise = apiRequest('/api/account/me', { getToken: hangingGetToken })
+      // Attach the rejection handler before the timers run so the throw is
+      // never observed as an unhandled rejection in the meantime.
+      const assertion = expect(promise).rejects.toThrow('Sign-in verification timed out')
+
+      await vi.advanceTimersByTimeAsync(12000)
+      await assertion
+
+      expect(globalThis.fetch).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
