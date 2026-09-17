@@ -50,7 +50,7 @@ This page contains the sprint backlogs for Kickstat. Story points follow the sca
 |---|---|---|---|---|---|
 | US5 | Create event | Event form + backend route | Lindokuhle | 3 | Done |
 | US6 | Edit/cancel event | Update/cancel endpoints + UI | Mmaphefo | 2 | Done |
-| US6-B | Cancelled event logging block | Reject logs on cancelled events | [name] | 1 | To Do |
+| US6-B | Cancelled event logging block | Reject logs on cancelled events | Lindokuhle | 1 | Done |
 | US13 | Start live event | Event status transition to live | Mmaphefo | 2 | Done |
 | US14 | Log scoring actions | Goals, penalties, saves endpoints | Lindokuhle | 3 | Done |
 | US15 | Log disciplinary actions | Yellow/red card endpoints | Lindokuhle | 2 | Done |
@@ -58,12 +58,15 @@ This page contains the sprint backlogs for Kickstat. Story points follow the sca
 | US18 | Weather forecast | Venue geocoding + Open-Meteo integration | Kgethego | 3 | Done |
 | US19 | League/tournament fixtures | Round-robin fixture generation | Mmaphefo | 5 | Done |
 | US20 | Event team join | Other squads join open events | Kgethego | 3 | Done |
-| US26 | Assistant permission boundary | Backend role checks + hide UI controls | Kgethego | 3 | To Do |
+| US26 | Assistant permission boundary | Backend role checks + hide UI controls | Kgethego | 3 | Done |
 | T-01 | Frontend test framework | Vitest + React Testing Library setup | Mmaphefo | 3 | In Progress |
 | T-02 | API documentation | OpenAPI spec + Swagger UI | Lindokuhle | 2 | Done |
 | D-01 | Deploy docs site | Docusaurus to Netlify/Cloudflare | Tasmiya | 2 | Done |
-| F-01 | User testing session | Recruit 3-5 users, document feedback | Kgotlelelo | 3 | To Do |
-|  |  | **Total** |  | **40** |  |
+| US29 | Log athlete injury | Injury form, estimator + POST /api/injuries | Kgotlelelo | 3 | Done |
+| US30 | Return-to-play estimate | Recovery-range estimator + coach override | Kgotlelelo | 2 | Done |
+| US31 | Injury flag on roster | is_injured flag with auto/manual clearance | Kgotlelelo | 2 | Done |
+| F-01 | User testing session | Recruit 3-5 users, document feedback | Kgotlelelo | 3 | done |
+|  |  | **Total** |  | **47** |  |
 
 ## Sprint 3 — Statistics, Notifications & Advanced Features
 

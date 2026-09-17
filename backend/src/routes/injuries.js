@@ -105,7 +105,10 @@ router.patch('/:id', requireAuth(), async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating injury:', err.message);
-    res.status(500).json({ error: 'Server error' });
+    // Respect role/permission errors (e.g. getOwnedSquadIdForCoach rejecting
+    // an assistant) instead of masking them as 500s.
+    const status = err.status || 500;
+    res.status(status).json({ error: status === 403 ? err.message : 'Server error' });
   }
 });
 
@@ -129,7 +132,8 @@ router.delete('/:id', requireAuth(), async (req, res) => {
     res.sendStatus(204);
   } catch (err) {
     console.error('Error deleting injury:', err.message);
-    res.status(500).json({ error: 'Server error' });
+    const status = err.status || 500;
+    res.status(status).json({ error: status === 403 ? err.message : 'Server error' });
   }
 });
 

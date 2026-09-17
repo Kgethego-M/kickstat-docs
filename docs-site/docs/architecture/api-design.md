@@ -22,7 +22,7 @@ All API endpoints are mounted under `/api` on the backend server.
 | Environment | Base URL |
 |-------------|----------|
 | Local development | `http://localhost:3000/api` |
-| Production | `<deployed-backend-url>/api` |
+| Production | `https://kickstat-api-i2rc.onrender.com/api` |
 
 ## Authentication
 

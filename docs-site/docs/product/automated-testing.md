@@ -4,11 +4,11 @@ sidebar_position: 5
 
 # Automated Testing
 
-Kickstat uses automated backend integration tests to verify the API, database
-behaviour, permissions, and key user journeys. This page explains the testing
-strategy, how to run the suite, and how to use the CI coverage evidence during
-each sprint.
-
+Kickstat uses automated tests on both sides of the stack: backend integration
+tests verify the API, database behaviour, permissions, and key user journeys,
+while frontend component tests verify rendering, routing guards, and the API
+helper. This page explains the testing strategy, how to run each suite, and how
+to use the CI coverage evidence during each sprint.
 ## Testing strategy
 
 The backend suite uses:
@@ -18,6 +18,13 @@ The backend suite uses:
 | [Vitest](https://vitest.dev/) | Runs the test suite and produces coverage reports. |
 | [Supertest](https://github.com/forwardemail/supertest) | Sends HTTP requests to the Express application without starting a public server. |
 | PostgreSQL | Provides a real database for integration tests, so migrations, constraints, SQL queries, and cascades are exercised. |
+The frontend suite uses:
+
+| Tool | Purpose |
+|---|---|
+| [Vitest](https://vitest.dev/) | Same runner and coverage tooling as the backend, configured for the browser environment. |
+| [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/) | Renders components and queries them the way a user would (by visible text and roles). |
+| [jsdom](https://github.com/jsdom/jsdom) | Provides a lightweight DOM implementation so component tests run without a real browser. |
 
 Tests are deliberately run against a separate PostgreSQL database. The suite
 resets its tables before each test, so it must **never** point at the normal
@@ -33,6 +40,9 @@ The integration suite covers the main backend workflows, including:
 - event creation, editing, cancellation, live logging, result calculation,
   and undo behaviour;
 - league fixtures, standings, and top-scorer aggregation;
+- injury logging, return-to-play estimates, coach overrides, and roster flags (US29–US31);
+- cancelled event and fixture logging being rejected (US6);
+- event reminder email scheduling;
 - external football-data API response normalisation and error handling; and
 - venue weather lookup behaviour.
 
@@ -56,6 +66,8 @@ backend/tests/integration/
 | `external.integration.test.js` | Football-data API integration |
 | `fixtures.integration.test.js` | Fixture detail, live logging, and permissions |
 | `invites.integration.test.js` | Assistant and athlete invitations |
+| `injuries.integration.test.js` | Injury logging, estimates, overrides, and roster flags (US29–US31) |
+| `reminders.integration.test.js` | Event reminder email scheduling |
 | `roster-and-events-basic.integration.test.js` | Roster and basic event management |
 | `squad.integration.test.js` | Squad and user self-healing helpers |
 | `weather.integration.test.js` | Weather integration |
@@ -102,6 +114,13 @@ that `TEST_DATABASE_URL` targets the test database, not the development or
 production database, before running it.
 :::
 
+## Frontend testing
+
+Frontend component tests live next to the components they test:
+
+```text
+frontend/src/**/__tests__/ and *.test.jsx files
+
 ## View coverage locally
 
 `npm run test:coverage` writes an HTML report to:
@@ -140,6 +159,9 @@ The backend CI job:
 4. runs `npm run test:coverage`; and
 5. uploads `backend/coverage` as the **`backend-coverage`** artifact.
 
+The frontend CI job mirrors it: ESLint, production build,
+`npm run test:coverage`, and a Codecov upload for the frontend coverage
+report, so both suites must stay green for a pull request to pass.
 To review a CI coverage report:
 
 1. Open the relevant Gitea Actions run.

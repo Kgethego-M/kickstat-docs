@@ -29,6 +29,8 @@ erDiagram
   FIXTURES ||--o{ LOG_ENTRIES : records
   ATHLETES ||--o{ LOG_ENTRIES : "attributed to"
   USERS ||--o{ LOG_ENTRIES : logs
+  ATHLETES ||--o{ INJURIES : sustains
+  USERS ||--o{ INJURIES : logs
   SQUADS ||--o{ INVITES : "invites into"
   USERS ||--o{ INVITES : sends
   ATHLETES ||--o| INVITES : "links existing roster row"
@@ -91,6 +93,19 @@ erDiagram
     integer logged_by FK
     timestamp deleted_at "soft delete = undo"
   }
+  INJURIES {
+    serial id PK
+    integer athlete_id FK
+    text description
+    date date_sustained
+    varchar severity "minor, moderate, severe"
+    date return_date "estimated, coach-editable"
+    varchar estimation_basis "how the estimate was derived"
+    integer estimation_min_weeks
+    integer estimation_max_weeks
+    timestamp cleared_at "set when manually cleared"
+    integer logged_by FK
+  }
   INVITES {
     serial id PK
     varchar email
@@ -142,6 +157,8 @@ PostgreSQL was chosen over alternatives (MongoDB, SQLite) because:
 | `events.status` is a string, not an enum | Allows adding new statuses (e.g., `postponed`) without a migration. |
 | Statistics are computed on read | Avoiding a separate `stats` table means the log is the single source of truth. Stats can never drift out of sync. |
 | `fixtures` are separate from `events` | A league event contains many fixtures. Keeping them in separate tables allows each fixture to have its own log, status, and date. |
+| `injuries.return_date` is an estimate, not a verdict | The estimator derives a range from sports-medicine reference tables and stores the midpoint with its basis (`estimation_basis`). Coaches can override it (US30) — the stored value is always what the coach last confirmed. |
+| `injuries.cleared_at` for early clearance | Recovery often beats the estimate. Setting `cleared_at` keeps the injury history for the athlete's record while dropping the active-injury flag. |
 
 ## Tables
 
@@ -212,6 +229,24 @@ The core of live event tracking — one row per logged action.
 | `updated_at` | timestamp | |
 | `deleted_at` | timestamp | **Soft delete** — set on "undo"; the row is kept for audit history but excluded from live views |
 
+### `injuries`
+
+Roster availability tracking (US29–US31). One row per logged injury.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | serial, PK | |
+| `athlete_id` | integer, not null, references `athletes`, `ON DELETE CASCADE` | |
+| `description` | text, not null | Free text; keyword-matched against the estimator's injury reference table |
+| `date_sustained` | date, not null | |
+| `severity` | varchar(20), not null, default `'moderate'` | `'minor'`, `'moderate'`, or `'severe'` (CHECK constraint) |
+| `return_date` | date | Estimated return-to-play date; coach-editable override (US30) |
+| `estimation_basis` | varchar(255) | Human-readable note on how the estimate was derived (matched injury vs severity default) |
+| `estimation_min_weeks` / `estimation_max_weeks` | integer | The reference range the midpoint was taken from |
+| `cleared_at` | timestamp | Set when the coach manually clears the athlete early (US31) |
+| `logged_by` | integer, not null, references `users` | Coach or assistant — matches live-logging access |
+| `created_at` / `updated_at` | timestamp | |
+
 ### `invites`
 
 | Column | Type | Notes |
@@ -245,3 +280,9 @@ Per-athlete and per-event statistics (goals, cards, appearances, result) are
 computed on read from `log_entries`, not stored as separate columns —
 keeping the log the single source of truth and avoiding stats drifting out
 of sync with the entries they're supposed to summarise.
+
+The same applies to roster availability: `GET /api/athletes` computes an
+`is_injured` flag per athlete with an `EXISTS` subquery over `injuries`
+(active = not cleared and `return_date >= CURRENT_DATE`), so the flag
+clears itself the day the estimated return date passes without any
+background job needed.

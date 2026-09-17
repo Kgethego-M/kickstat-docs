@@ -135,6 +135,10 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
       return res.status(404).json({ error: 'Fixture not found' });
     }
 
+    if (fixture.status === 'cancelled') {
+      return res.status(400).json({ error: 'Fixture is cancelled' });
+    }
+
     // Only the home team logs actions in a fixture.
     if (fixture.home_squad_id !== squadId) {
       return res.status(403).json({ error: 'Only the home team can log actions' });
