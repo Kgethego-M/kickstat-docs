@@ -1,51 +1,140 @@
-.roster-header {
+/* ---- Page shell (light matchday-grey canvas behind the cards) ---- */
+.roster-page {
+  background: #eef2f7;
+  margin: -40px -48px;
+  padding: 40px 48px;
+  min-height: 100vh;
+}
+
+/* ---- Header: eyebrow + title + actions ---- */
+.ros-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: 28px;
   gap: 16px;
   flex-wrap: wrap;
+  margin-bottom: 22px;
 }
 
-.roster-header-actions {
+.ros-eyebrow {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-blue);
+  margin-bottom: 2px;
+}
+
+.ros-title {
+  font-family: var(--font-display);
+  font-size: 52px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.ros-head-actions {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.btn-icon {
+.ros-add-btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  background: var(--color-pitch);
-  color: var(--color-ink-soft);
-  cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  gap: 8px;
 }
 
-.btn-icon:hover {
-  border-color: var(--color-gold);
+/* ---- Squad intro strip ---- */
+.ros-hero {
+  margin-bottom: 28px;
+}
+
+.ros-hero-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-blue);
+  margin-bottom: 4px;
+}
+
+.ros-hero-title {
+  font-family: var(--font-display);
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  margin: 0 0 10px;
+}
+
+.ros-hero-sub {
+  font-size: 15px;
+  color: var(--color-ink-soft);
+  margin: 0;
+}
+
+/* ---- Availability stat cards ---- */
+.ros-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.ros-stat-card {
+  background: var(--color-pitch);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-card);
+}
+
+.ros-stat-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-soft);
+  margin-bottom: 8px;
+}
+
+.ros-stat-value {
+  font-family: var(--font-display);
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1;
   color: var(--color-ink);
 }
 
-.btn-icon-active {
-  background: var(--color-gold);
-  border-color: var(--color-gold);
-  color: var(--color-pitch);
+.ros-stat-card-injured {
+  background: rgba(var(--color-lime-rgb), 0.16);
+  border-color: rgba(var(--color-lime-rgb), 0.7);
 }
 
-.btn-icon-active:hover {
-  color: var(--color-pitch);
+/* ---- Toolbar: search + status filters ---- */
+.ros-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
 }
 
 .roster-search {
   position: relative;
-  max-width: 360px;
-  margin-bottom: 24px;
+  width: 100%;
+  max-width: 400px;
 }
 
 .roster-search-icon {
@@ -74,163 +163,255 @@
   box-shadow: 0 0 0 3px var(--color-sky-soft);
 }
 
-.roster-error {
-  background: rgba(179, 59, 59, 0.08);
-  border: 1px solid rgba(179, 59, 59, 0.3);
-  color: #b33b3b;
-  padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  margin-bottom: 20px;
-}
-
-.roster-status {
-  font-size: 14px;
-  padding: 20px 0;
-}
-
-.roster-empty {
-  border: 1px dashed var(--color-line);
-  border-radius: var(--radius);
-  padding: 48px 24px;
-  text-align: center;
-  background: var(--color-chalk);
-}
-
-.roster-form {
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius);
-  background: var(--color-chalk);
-  padding: 24px;
-  margin-bottom: 28px;
-}
-
-.roster-form h3 {
-  margin-bottom: 16px;
-}
-
-.roster-form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 14px;
-}
-
-.roster-form-wide {
-  grid-column: 1 / -1;
-}
-
-.roster-form label {
+.ros-filters {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 6px;
-  font-size: 13px;
+}
+
+.ros-filters-icon {
+  color: var(--color-ink-soft);
+  margin-right: 4px;
+}
+
+.ros-filter-btn {
   font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-ink-soft);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.roster-form input,
-.roster-form select {
-  font-family: var(--font-body);
-  font-size: 15px;
-  padding: 9px 12px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  background: var(--color-pitch);
+.ros-filter-btn:hover {
   color: var(--color-ink);
 }
 
-.roster-form input:focus,
-.roster-form select:focus {
-  outline: none;
-  border-color: var(--color-sky);
-  box-shadow: 0 0 0 3px var(--color-sky-soft);
+.ros-filter-active,
+.ros-filter-active:hover {
+  background: var(--color-ink-fixed);
+  color: var(--color-pitch);
 }
 
-.roster-form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.roster-grid {
+/* ---- Athlete cards ---- */
+.ros-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 20px;
 }
 
-.athlete-card {
+.ros-card {
+  position: relative;
   border: 1px solid var(--color-line);
   border-radius: var(--radius);
-  padding: 20px;
   background: var(--color-pitch);
   box-shadow: var(--shadow-card);
+  overflow: hidden;
   transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
-.athlete-card:hover {
+.ros-card:hover {
   transform: translateY(-2px);
-  border-color: var(--color-gold);
+  border-color: var(--color-blue);
 }
 
-.athlete-card-main {
+.ros-card-main {
   display: block;
   text-decoration: none;
   color: inherit;
-  cursor: pointer;
+  padding: 26px 26px 0;
 }
 
-.athlete-card-main:hover {
+.ros-card-main:hover {
   text-decoration: none;
 }
 
-.athlete-number {
+.ros-card-ghost {
+  position: absolute;
+  top: 12px;
+  left: 22px;
   font-family: var(--font-display);
-  font-size: 42px;
+  font-size: 66px;
   font-weight: 700;
-  color: var(--color-gold);
   line-height: 1;
-  margin-bottom: 10px;
+  color: rgba(var(--color-ink-rgb), 0.07);
+  pointer-events: none;
 }
 
-.athlete-info h3 {
-  margin-bottom: 4px;
-}
-
-.athlete-position {
-  display: inline-block;
-  font-size: 13px;
+.ros-card-pill {
+  position: absolute;
+  top: 22px;
+  right: 22px;
   font-family: var(--font-display);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-sky);
-  border-bottom: 2px solid var(--color-sky);
-  padding-bottom: 2px;
-}
-
-.injury-badge {
-  display: inline-block;
-  margin-left: 8px;
   font-size: 10px;
-  font-family: var(--font-display);
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #b33b3b;
-  background: rgba(179, 59, 59, 0.08);
-  border: 1px solid rgba(179, 59, 59, 0.3);
-  border-radius: 999px;
-  padding: 2px 8px;
-  vertical-align: middle;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
 }
 
-.athlete-actions {
+.ros-card-pill-ready {
+  background: var(--color-blue);
+  color: var(--color-pitch);
+}
+
+.ros-card-pill-managed {
+  background: var(--color-lime);
+  color: var(--color-ink);
+}
+
+.ros-card-pill-injured {
+  background: #b33b3b;
+  color: var(--color-pitch);
+}
+
+.ros-card-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  margin: 34px auto 26px;
+  border-radius: 50%;
+  background: var(--color-blue);
+  color: var(--color-pitch);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ros-card-body {
+  border-top: 1px solid var(--color-line);
+  margin: 0 -26px;
+  padding: 16px 26px 20px;
+}
+
+.ros-card-toprow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ros-card-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.ros-card-score {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.ros-card-pos {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-blue);
+  margin-top: 3px;
+}
+
+.ros-card-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(var(--color-ink-rgb), 0.08);
+  margin: 14px 0 16px;
+  overflow: hidden;
+}
+
+.ros-card-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-blue);
+}
+
+.ros-card-bar-injured {
+  background: #b33b3b;
+}
+
+.ros-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+
+.ros-card-profile {
+  font-weight: 600;
+  color: var(--color-blue);
+}
+
+.ros-card-actions {
   display: flex;
   gap: 8px;
-  margin-top: 16px;
+  padding: 0 26px 20px;
 }
 
-.roster-added-confirmation p {
-  margin-bottom: 4px;
+/* ---- Responsive ---- */
+@media (max-width: 980px) {
+  .ros-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .roster-page {
+    margin: -24px -20px;
+    padding: 24px 20px;
+  }
+
+  .ros-title {
+    font-size: 40px;
+  }
+
+  .ros-hero-title {
+    font-size: 30px;
+  }
+
+  .ros-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .roster-search {
+    max-width: none;
+  }
+
+  .ros-filters {
+    flex-wrap: wrap;
+  }
+
+  .ros-card-main {
+    padding: 22px 18px 0;
+  }
+
+  .ros-card-body {
+    margin: 0 -18px;
+    padding: 14px 18px 18px;
+  }
+
+  .ros-card-actions {
+    padding: 0 18px 18px;
+  }
 }
