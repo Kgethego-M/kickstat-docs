@@ -5,6 +5,7 @@ import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
 import { ACTION_TYPES, formatActionType } from '../lib/actions'
 import WeatherWidget from '../components/WeatherWidget'
+import { useCountUp } from '../lib/useCountUp'
 import './EventDetail.css'
 
 const emptyLogForm = {
@@ -43,6 +44,11 @@ function formatDateTime(iso) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function StatNumber({ value, suffix = '' }) {
+  const animated = useCountUp(value)
+  return <>{animated}{suffix}</>
 }
 
 function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
@@ -437,168 +443,373 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
 
   const isOpen = event.status === 'open'
   const mySquadJoined = teams.some((t) => t.is_mine)
+  const formatLabel = event.format === 'league' ? 'League' : 'Tournament'
+  const statusText = statusLabel[event.status] || event.status
+  const mineSquadIds = new Set(teams.filter((t) => t.is_mine).map((t) => t.squad_id))
+
+  // League-wide analytics, all derived from the real standings/fixtures payload —
+  // no invented numbers, so the charts stay honest however the season develops.
+  const matchesPlayed = Math.round(standings.reduce((sum, t) => sum + t.played, 0) / 2)
+  const totalGoals = standings.reduce((sum, t) => sum + t.gf, 0)
+  const goalsPerMatch = matchesPlayed > 0 ? (totalGoals / matchesPlayed).toFixed(1) : '0.0'
+  const topScorer = stats?.topScorers?.[0] ?? null
+  const topScorerGoals = topScorer ? topScorer.goals : 0
+  const topAssisterAssists = stats?.topAssisters?.[0]?.assists ?? 0
+  const maxPoints = Math.max(1, ...standings.map((t) => t.points))
+  const maxGoalsForChart = Math.max(1, ...standings.flatMap((t) => [t.gf, t.ga]))
 
   return (
-    <>
-      <div className="roster-header">
-        <div>
-          <span className="dashboard-eyebrow">
-            {event.format === 'league' ? 'League' : 'Tournament'} · {statusLabel[event.status] || event.status}
+    <div className="lg-page">
+      <header className="lg-head">
+        <div className="lg-head-main">
+          <span className="lg-eyebrow">
+            {formatLabel} centre · {statusText}
           </span>
-         <h1>{event.title || 'Untitled league'}</h1>
-          <p className="event-detail-date">
-            {teams.length} / {event.required_teams} teams joined
-          </p>
-          {event.location && <p className="event-detail-location">📍 {event.location}</p>}
+          <h1 className="lg-title">{event.title || 'Untitled league'}</h1>
+          <div className="lg-head-meta">
+            <span className="lg-tag">
+              {teams.length} / {event.required_teams} teams joined
+            </span>
+            {event.location && <span className="lg-loc">📍 {event.location}</span>}
+          </div>
         </div>
         {isOpen && !mySquadJoined && (
-          <button className="btn btn-gold" disabled={joining} onClick={handleJoin}>
+          <button className="btn btn-gold lg-join-btn" disabled={joining} onClick={handleJoin}>
             {joining ? 'Joining...' : 'Join league'}
           </button>
         )}
-      </div>
+      </header>
 
       {event.location && <WeatherWidget location={event.location} />}
 
       {error && <div className="roster-error">{error}</div>}
 
-      <section className="league-section">
-        <h3>Teams</h3>
-        <div className="league-teams">
+      <div className="lg-hero">
+        <div className="lg-hero-text">
+          <span className="lg-hero-eyebrow">
+            {formatLabel} · {statusText}
+          </span>
+          <h2 className="lg-hero-title">Every point earned, charted</h2>
+          <p className="lg-hero-sub">
+            Live standings, scoring charts and the full fixture grid — everything
+            updates as results are logged.
+          </p>
+        </div>
+        <div className="lg-hero-teams">
           {teams.map((team) => (
-            <span key={team.squad_id} className={`league-team ${team.is_mine ? 'league-team-mine' : ''}`}>
+            <span
+              key={team.squad_id}
+              className={`lg-team-chip ${team.is_mine ? 'lg-team-chip-mine' : ''}`}
+            >
               {team.squad_name}
             </span>
           ))}
         </div>
-      </section>
+      </div>
+
+      <div className="lg-stat-grid">
+        <div className="lg-stat-card">
+          <span className="lg-stat-label">Teams</span>
+          <span className="lg-stat-value">
+            <StatNumber value={teams.length} />
+            <span className="lg-stat-dim">/{event.required_teams ?? '—'}</span>
+          </span>
+          <span className="lg-stat-note">
+            {mySquadJoined ? 'Your squad is entered' : 'Your squad not entered'}
+          </span>
+        </div>
+
+        <div className="lg-stat-card">
+          <span className="lg-stat-label">Matches played</span>
+          <span className="lg-stat-value">
+            <StatNumber value={matchesPlayed} />
+          </span>
+          <span className="lg-stat-note">{fixtures.length} fixtures in the grid</span>
+        </div>
+
+        <div className="lg-stat-card">
+          <span className="lg-stat-label">Goals scored</span>
+          <span className="lg-stat-value">
+            <StatNumber value={totalGoals} />
+          </span>
+          <span className="lg-stat-note">{goalsPerMatch} per match</span>
+        </div>
+
+        <div className="lg-stat-card lg-stat-card-accent">
+          <span className="lg-stat-label">Top scorer</span>
+          <span className="lg-stat-value lg-stat-value-name">
+            {topScorer ? topScorer.athleteName : '—'}
+          </span>
+          <span className="lg-stat-note">
+            {topScorer
+              ? `${topScorer.goals} goal${topScorer.goals === 1 ? '' : 's'} · ${topScorer.squadName}`
+              : 'No goals recorded yet'}
+          </span>
+        </div>
+      </div>
+
+      {standings.length > 1 && (
+        <div className="lg-charts-grid">
+          <div className="lg-chart-card">
+            <span className="lg-chart-eyebrow">Title race</span>
+            <h3>Points by team</h3>
+            <div className="lg-hbars">
+              {standings.map((row) => (
+                <div className="lg-hbar-row" key={row.squadId}>
+                  <span className="lg-hbar-name" title={row.squadName}>
+                    {row.squadName}
+                  </span>
+                  <div className="lg-hbar-track">
+                    <div
+                      className={`lg-hbar-fill ${mineSquadIds.has(row.squadId) ? 'lg-hbar-fill-mine' : ''}`}
+                      style={{ width: `${(row.points / maxPoints) * 100}%` }}
+                    />
+                  </div>
+                  <span className="lg-hbar-value">{row.points}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="lg-chart-card">
+            <span className="lg-chart-eyebrow">Firepower vs resilience</span>
+            <h3>Goals for &amp; against</h3>
+            <div className="lg-ga-chart">
+              {standings.map((row) => (
+                <div className="lg-ga-col" key={row.squadId}>
+                  <div className="lg-ga-bars">
+                    <div
+                      className="lg-ga-bar lg-ga-bar-for"
+                      style={{ height: `${(row.gf / maxGoalsForChart) * 100}%` }}
+                    />
+                    <div
+                      className="lg-ga-bar lg-ga-bar-against"
+                      style={{ height: `${(row.ga / maxGoalsForChart) * 100}%` }}
+                    />
+                  </div>
+                  <span className="lg-ga-label" title={row.squadName}>
+                    {row.squadName.split(' ')[0]}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="lg-chart-footer">
+              <span className="lg-legend-item">
+                <span className="lg-legend-swatch lg-legend-swatch-for" /> Goals for
+              </span>
+              <span className="lg-legend-item">
+                <span className="lg-legend-swatch lg-legend-swatch-against" /> Goals against
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {standings.length > 0 && (
-        <section className="league-section">
-          <h3>Standings</h3>
-          <table className="league-table">
-            <thead>
-              <tr>
-                <th>Team</th>
-                <th>P</th>
-                <th>W</th>
-                <th>D</th>
-                <th>L</th>
-                <th>GF</th>
-                <th>GA</th>
-                <th>GD</th>
-                <th>Pts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {standings.map((row) => (
-                <tr key={row.squadId}>
-                  <td>{row.squadName}</td>
-                  <td>{row.played}</td>
-                  <td>{row.wins}</td>
-                  <td>{row.draws}</td>
-                  <td>{row.losses}</td>
-                  <td>{row.gf}</td>
-                  <td>{row.ga}</td>
-                  <td>{row.gd}</td>
-                  <td className="league-points">{row.points}</td>
+        <section className="lg-section">
+          <div className="lg-section-head">
+            <span className="lg-chart-eyebrow">League table</span>
+            <h3>Standings</h3>
+          </div>
+          <div className="lg-table-wrap">
+            <table className="lg-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Team</th>
+                  <th>P</th>
+                  <th>W</th>
+                  <th>D</th>
+                  <th>L</th>
+                  <th>GF</th>
+                  <th>GA</th>
+                  <th>GD</th>
+                  <th>Pts</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {standings.map((row, i) => (
+                  <tr
+                    key={row.squadId}
+                    className={mineSquadIds.has(row.squadId) ? 'lg-table-row-mine' : ''}
+                  >
+                    <td className="lg-table-rank">{i + 1}</td>
+                    <td className="lg-table-team">{row.squadName}</td>
+                    <td>{row.played}</td>
+                    <td>{row.wins}</td>
+                    <td>{row.draws}</td>
+                    <td>{row.losses}</td>
+                    <td>{row.gf}</td>
+                    <td>{row.ga}</td>
+                    <td>{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
+                    <td className="lg-table-points">{row.points}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
       {fixtures.length > 0 && (
-        <section className="league-section">
-          <h3>Fixtures</h3>
-          <div className="league-fixtures">
-            {fixtures.map((fixture) => (
-              <div key={fixture.id} className={`league-fixture league-fixture-${fixture.status}`}>
-                <div className="league-fixture-teams">
-                  <span className={fixture.is_home_mine ? 'league-fixture-mine' : ''}>
-                    {fixture.home_squad_name}
-                  </span>
-                  <span className="league-fixture-vs">vs</span>
-                  <span className={fixture.is_away_mine ? 'league-fixture-mine' : ''}>
-                    {fixture.away_squad_name}
-                  </span>
-                </div>
-                <span className={`event-status event-status-${fixture.status}`}>
-                  {statusLabel[fixture.status] || fixture.status}
-                </span>
-                {fixture.is_home_mine && fixture.status === 'scheduled' ? (
-                  <div className="fixture-kickoff-edit">
-                    <input
-                      type="datetime-local"
-                      aria-label="Fixture kickoff"
-                      value={dateDrafts[fixture.id] ?? toLocalInputValue(fixture.event_date)}
-                      onChange={(e) => setDateDrafts({ ...dateDrafts, [fixture.id]: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-gold"
-                      disabled={savingFixtureDateId === fixture.id || !(dateDrafts[fixture.id] ?? fixture.event_date)}
-                      onClick={() => handleSaveFixtureDate(fixture.id)}
-                    >
-                      {savingFixtureDateId === fixture.id ? 'Saving...' : 'Save kickoff'}
-                    </button>
+        <section className="lg-section">
+          <div className="lg-section-head">
+            <span className="lg-chart-eyebrow">Fixture grid</span>
+            <h3>Fixtures</h3>
+            <span className="lg-fixture-count">{fixtures.length} matches</span>
+          </div>
+          <div className="lg-fixtures">
+            {fixtures.map((fixture) => {
+              const kickoff = fixture.event_date ? new Date(fixture.event_date) : null
+              return (
+                <div key={fixture.id} className={`lg-fixture-row lg-fixture-row-${fixture.status}`}>
+                  <div className="lg-fixture-date">
+                    <span className="lg-fixture-day">
+                      {kickoff
+                        ? kickoff.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }).toUpperCase()
+                        : 'TBC'}
+                    </span>
+                    <span className="lg-fixture-time">
+                      {kickoff
+                        ? kickoff.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                        : '—'}
+                    </span>
                   </div>
-                ) : (
-                  <span className="fixture-kickoff">
-                    {fixture.event_date ? formatDateTime(fixture.event_date) : 'Kickoff TBC'}
-                  </span>
-                )}
-                {fixture.status === 'scheduled' && fixture.is_home_mine && (
-                  <button
-                    className="btn btn-gold"
-                    disabled={startingFixtureId === fixture.id}
-                    onClick={() => handleStartFixture(fixture.id)}
-                  >
-                    {startingFixtureId === fixture.id ? 'Starting...' : 'Start live'}
-                  </button>
-                )}
-                {fixture.status === 'live' && (
-                  <button className="btn btn-gold" onClick={() => navigate(`/live/fixture/${fixture.id}`)}>
-                    Go live
-                  </button>
-                )}
-              </div>
-            ))}
+                  <div className="lg-fixture-main">
+                    <div className="lg-fixture-tags">
+                      <span className={`event-status event-status-${fixture.status}`}>
+                        {statusLabel[fixture.status] || fixture.status}
+                      </span>
+                    </div>
+                    <span className="lg-fixture-teams">
+                      <span className={fixture.is_home_mine ? 'lg-fixture-mine' : ''}>
+                        {fixture.home_squad_name}
+                      </span>
+                      <span className="lg-fixture-vs">—</span>
+                      <span className={fixture.is_away_mine ? 'lg-fixture-mine' : ''}>
+                        {fixture.away_squad_name}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="lg-fixture-actions">
+                    {fixture.is_home_mine && fixture.status === 'scheduled' ? (
+                      <div className="lg-kickoff-edit">
+                        <input
+                          type="datetime-local"
+                          aria-label="Fixture kickoff"
+                          value={dateDrafts[fixture.id] ?? toLocalInputValue(fixture.event_date)}
+                          onChange={(e) => setDateDrafts({ ...dateDrafts, [fixture.id]: e.target.value })}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-gold"
+                          disabled={
+                            savingFixtureDateId === fixture.id ||
+                            !(dateDrafts[fixture.id] ?? fixture.event_date)
+                          }
+                          onClick={() => handleSaveFixtureDate(fixture.id)}
+                        >
+                          {savingFixtureDateId === fixture.id ? 'Saving...' : 'Save kickoff'}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="lg-fixture-kickoff">
+                        {fixture.event_date ? formatDateTime(fixture.event_date) : 'Kickoff TBC'}
+                      </span>
+                    )}
+                    {fixture.status === 'scheduled' && fixture.is_home_mine && (
+                      <button
+                        className="btn btn-gold lg-btn-live"
+                        disabled={startingFixtureId === fixture.id}
+                        onClick={() => handleStartFixture(fixture.id)}
+                      >
+                        {startingFixtureId === fixture.id ? 'Starting...' : 'Start live'}
+                      </button>
+                    )}
+                    {fixture.status === 'live' && (
+                      <button
+                        className="btn btn-gold lg-btn-live"
+                        onClick={() => navigate(`/live/fixture/${fixture.id}`)}
+                      >
+                        Go live
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </section>
       )}
 
       {stats && (
-        <section className="league-section">
-          <h3>Top Scorers</h3>
-          {stats.topScorers.length === 0 ? (
-            <p className="roster-status">No goals recorded yet.</p>
-          ) : (
-            <ol className="league-stats-list">
-              {stats.topScorers.map((s) => (
-                <li key={s.athleteId}>
-                  {s.athleteName} <span className="league-stats-meta">({s.squadName})</span> — {s.goals} goal{s.goals === 1 ? '' : 's'}
-                </li>
-              ))}
-            </ol>
-          )}
+        <div className="lg-leaders-grid">
+          <div className="lg-panel">
+            <span className="lg-chart-eyebrow">Golden boot race</span>
+            <h3>Top scorers</h3>
+            {stats.topScorers.length === 0 ? (
+              <p className="roster-status">No goals recorded yet.</p>
+            ) : (
+              <div className="lg-leader-list">
+                {stats.topScorers.map((s, i) => (
+                  <div className="lg-leader-row" key={s.athleteId}>
+                    <span className="lg-leader-rank">{i + 1}</span>
+                    <div className="lg-leader-info">
+                      <span className="lg-leader-name">{s.athleteName}</span>
+                      <span className="lg-leader-pos">{s.squadName}</span>
+                    </div>
+                    <div className="lg-leader-side">
+                      <span className="lg-leader-num">
+                        {s.goals}
+                        <span className="lg-leader-num-label">goal{s.goals === 1 ? '' : 's'}</span>
+                      </span>
+                      <div className="lg-leader-track">
+                        <div
+                          className="lg-leader-fill"
+                          style={{ width: `${topScorerGoals > 0 ? (s.goals / topScorerGoals) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-          <h3 className="league-subheading">Top Assisters</h3>
-          {stats.topAssisters.length === 0 ? (
-            <p className="roster-status">No assists recorded yet.</p>
-          ) : (
-            <ol className="league-stats-list">
-              {stats.topAssisters.map((s) => (
-                <li key={s.athleteId}>
-                  {s.athleteName} <span className="league-stats-meta">({s.squadName})</span> — {s.assists} assist{s.assists === 1 ? '' : 's'}
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
+          <div className="lg-panel">
+            <span className="lg-chart-eyebrow">Playmaker race</span>
+            <h3>Top assisters</h3>
+            {stats.topAssisters.length === 0 ? (
+              <p className="roster-status">No assists recorded yet.</p>
+            ) : (
+              <div className="lg-leader-list">
+                {stats.topAssisters.map((s, i) => (
+                  <div className="lg-leader-row" key={s.athleteId}>
+                    <span className="lg-leader-rank">{i + 1}</span>
+                    <div className="lg-leader-info">
+                      <span className="lg-leader-name">{s.athleteName}</span>
+                      <span className="lg-leader-pos">{s.squadName}</span>
+                    </div>
+                    <div className="lg-leader-side">
+                      <span className="lg-leader-num">
+                        {s.assists}
+                        <span className="lg-leader-num-label">assist{s.assists === 1 ? '' : 's'}</span>
+                      </span>
+                      <div className="lg-leader-track">
+                        <div
+                          className="lg-leader-fill lg-leader-fill-assist"
+                          style={{ width: `${topAssisterAssists > 0 ? (s.assists / topAssisterAssists) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
-    </>
+    </div>
   )
 }
 
