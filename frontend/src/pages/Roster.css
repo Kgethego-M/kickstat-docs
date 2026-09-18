@@ -130,7 +130,8 @@
   color: var(--color-ink-soft);
 }
 
-.roster-form input {
+.roster-form input,
+.roster-form select {
   font-family: var(--font-body);
   font-size: 15px;
   padding: 9px 12px;
@@ -140,7 +141,8 @@
   color: var(--color-ink);
 }
 
-.roster-form input:focus {
+.roster-form input:focus,
+.roster-form select:focus {
   outline: none;
   border-color: var(--color-sky);
   box-shadow: 0 0 0 3px var(--color-sky-soft);
