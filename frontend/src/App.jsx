@@ -1,5 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
-import Home from './pages/Home'
+import Welcome from './pages/Welcome'
+import SignInPage from './pages/SignInPage'
+import SignUpPage from './pages/SignUpPage'
 import Dashboard from './pages/Dashboard'
 import Roster from './pages/Roster'
 import AthleteStats from './pages/AthleteStats'
@@ -16,7 +18,7 @@ import './App.css'
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<Welcome />} />
       <Route
         path="/dashboard"
         element={
@@ -25,6 +27,9 @@ function App() {
           </OnboardingGuard>
         }
       />
+      <Route path="/welcome" element={<Welcome />} />  
+      <Route path="/sign-in/*" element={<SignInPage />} />
+      <Route path="/sign-up/*" element={<SignUpPage />} />
       <Route
         path="/setup"
         element={
