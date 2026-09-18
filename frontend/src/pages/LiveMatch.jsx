@@ -42,7 +42,7 @@ function useMatchDetail() {
     } finally {
       setLoading(false)
     }
-  }, [entityId, apiPrefix])
+  }, [entityId, apiPrefix, getToken])
 
   useEffect(() => {
     loadDetail()
