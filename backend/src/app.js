@@ -7,6 +7,7 @@ const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 const path = require('path');
 const webhooksRouter = require('./routes/webhooks');
+const dashboardRouter = require('./routes/dashboard');
 const squadsRouter = require('./routes/squads');
 const athletesRouter = require('./routes/athletes');
 const eventsRouter = require('./routes/events');
@@ -34,6 +35,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use('/api/dashboard', dashboardRouter);
 app.use(clerkMiddleware());
 
 // Moved here from before `const app = express()` — that's what was crashing

@@ -7,7 +7,8 @@ const { createInvite } = require('./invites');
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// List the logged-in coach's roster, flagging currently-injured athletes (US31)
+// List the logged-in coach's roster, flagging currently-injured and
+// managed/rested athletes.
 router.get('/', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
@@ -79,7 +80,7 @@ router.post('/', requireAuth(), async (req, res) => {
 });
 
 // GET /api/athletes/:id/stats — per-athlete summary derived from logged events (US17),
-// now including injury history and current injury status (US29/US30/US31).
+// including injury history and current injury status (US29/US30/US31).
 router.get('/:id/stats', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
@@ -137,7 +138,8 @@ router.get('/:id/stats', requireAuth(), async (req, res) => {
   }
 });
 
-// Edit an athlete — only if the coach owns the squad it belongs to
+// Edit an athlete — only if the coach owns the squad it belongs to.
+// Also handles the managed/rested toggle (is_managed).
 router.patch('/:id', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
@@ -151,7 +153,7 @@ router.patch('/:id', requireAuth(), async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to edit this athlete' });
     }
 
-    const { name, position, squad_number, date_of_birth, contact_info, email } = req.body;
+    const { name, position, squad_number, date_of_birth, contact_info, email, is_managed } = req.body;
 
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email address' });
@@ -165,9 +167,10 @@ router.patch('/:id', requireAuth(), async (req, res) => {
            date_of_birth = COALESCE($4, date_of_birth),
            contact_info = COALESCE($5, contact_info),
            email = COALESCE($6, email),
+           is_managed = COALESCE($7, is_managed),
            updated_at = now()
-       WHERE id = $7 RETURNING *`,
-      [name, position, squad_number, date_of_birth, contact_info, email || null, req.params.id]
+       WHERE id = $8 RETURNING *`,
+      [name, position, squad_number, date_of_birth, contact_info, email || null, typeof is_managed === 'boolean' ? is_managed : null, req.params.id]
     );
 
     res.json(result.rows[0]);
