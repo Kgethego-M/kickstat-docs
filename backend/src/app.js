@@ -17,6 +17,7 @@ const accountRouter = require('./routes/account');
 const weatherRouter = require('./routes/weather');
 const injuriesRouter = require('./routes/injuries');
 const compareRouter = require('./routes/compare');
+const tacticsRouter = require('./routes/tactics');
 const { sendEventReminders } = require('./lib/reminders');
 
 const app = express();
@@ -57,6 +58,7 @@ app.use('/api/account', accountRouter);
 app.use('/api/weather', weatherRouter);
 app.use('/api/injuries', injuriesRouter);
 app.use('/api/compare', compareRouter);
+app.use('/api/tactics', tacticsRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
