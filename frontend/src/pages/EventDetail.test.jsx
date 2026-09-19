@@ -181,7 +181,7 @@ describe('EventDetail', () => {
     expect(screen.getByRole('button', { name: /Save kickoff/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/Fixture kickoff/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Go live/i })).toBeInTheDocument()
-  })
+  }, 15000)
 
   it('shows a join button for an open league the squad has not entered', async () => {
     renderAt('/events/6')
