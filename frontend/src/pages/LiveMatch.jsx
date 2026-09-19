@@ -2,8 +2,21 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { useParams, Link, Navigate, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
+import Pitch from '../components/Pitch'
+import LineupWizard from '../components/LineupWizard'
 import { apiRequest } from '../lib/api'
 import { ACTION_TYPES, QUICK_ACTIONS, formatActionType } from '../lib/actions'
+import {
+  assistForGoal,
+  canLogOn,
+  computeRating,
+  detectFormation,
+  initialsOf,
+  isLinkedAssist,
+  parseSubstitutionNotes,
+  ratingColor,
+  splitLineup,
+} from '../lib/lineups'
 import './LiveMatch.css'
 
 // Approximation: elapsed minutes since the scheduled kickoff time.
@@ -125,8 +138,10 @@ function LiveMatch() {
 
   const { getToken } = useAuth()
 
-  const [pendingAction, setPendingAction] = useState(null)
+  const [flow, setFlow] = useState(null)
+  const [hint, setHint] = useState('')
   const [logging, setLogging] = useState(false)
+  const [savingLineup, setSavingLineup] = useState(false)
 
   const [editingEntryId, setEditingEntryId] = useState(null)
   const [editForm, setEditForm] = useState(null)
@@ -134,28 +149,192 @@ function LiveMatch() {
   const [endingFixture, setEndingFixture] = useState(false)
   const navigate = useNavigate()
 
-  async function handleLog(athleteIdOrOpponent) {
-    if (!pendingAction) return
+  if (loading) {
+    return (
+      <Layout>
+        <p className="roster-status">Loading live match...</p>
+      </Layout>
+    )
+  }
+
+  if (!detail) {
+    return (
+      <Layout>
+        {error && <div className="roster-error">{error}</div>}
+      </Layout>
+    )
+  }
+
+  const event = isFixture ? detail.fixture : detail.event
+  const rawResult = detail.result || { home: 0, away: 0 }
+  const result = isFixture
+    ? rawResult
+    : { home: rawResult.squad ?? 0, away: rawResult.opponent ?? 0 }
+  const timeline = detail.timeline || []
+  const lineups = detail.lineups || []
+  const lineupsSet = lineups.length > 0
+  const canLog = isFixture ? detail.canLog : true
+  const loggingOpen = canLog && activeStatus === 'live'
+
+  const homeName = isFixture ? event.home_squad_name : 'Your Squad'
+  const awayName = isFixture ? event.away_squad_name : (event.opponent || 'Opponent')
+  const summaryPath = isFixture ? `/events/${event.event_id}` : `/events/${entityId}`
+
+  const homeRoster = isFixture ? (detail.rosters?.home || []) : athletes
+  const awayRoster = isFixture ? (detail.rosters?.away || []) : []
+  const homeSide = splitLineup(lineups, 'home')
+  const awaySide = splitLineup(lineups, 'away')
+
+  const homeFormation = detectFormation(homeSide.starters, 'home')
+  const awayFormation = isFixture ? detectFormation(awaySide.starters, 'away') : null
+
+  // Ratings come from whatever has been logged for each player so far.
+  const hasLogs = timeline.length > 0
+  const ratingOf = (athleteId) => {
+    if (!hasLogs) return null
+    return computeRating(timeline.filter((e) => e.athlete_id === athleteId))
+  }
+
+  const withRatings = (rows) =>
+    rows.map((r) => ({ ...r, rating: ratingOf(r.athlete_id) }))
+
+  const nameById = new Map()
+  for (const r of lineups) nameById.set(r.athlete_id, r.name)
+  for (const r of [...homeRoster, ...awayRoster]) {
+    if (!nameById.has(r.id)) nameById.set(r.id, r.name)
+  }
+
+  async function postLog(body) {
+    if (logging) return
     setLogging(true)
     setError('')
+    setHint('')
     try {
       await apiRequest(`${apiPrefix}/${entityId}/logs`, {
         method: 'POST',
-        body: {
-          athlete_id: athleteIdOrOpponent === 'opponent' ? null : Number(athleteIdOrOpponent),
-          action_type: pendingAction.value,
-          is_scoring: pendingAction.scoring,
-          minute: clockMinute,
-          notes: null,
-        },
+        body: { minute: clockMinute, ...body },
         getToken,
       })
-      setPendingAction(null)
+      setFlow(null)
       await loadDetail()
     } catch (err) {
       setError(err.message)
     } finally {
       setLogging(false)
+    }
+  }
+
+  async function handleSaveLineup(payload) {
+    if (savingLineup) return
+    setSavingLineup(true)
+    setError('')
+    try {
+      await apiRequest(`${apiPrefix}/${entityId}/lineup`, {
+        method: 'PUT',
+        body: payload,
+        getToken,
+      })
+      await loadDetail()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingLineup(false)
+    }
+  }
+
+  function handleActionClick(action) {
+    if (!loggingOpen) return
+    closeEdit()
+    setHint('')
+    setFlow({
+      kind: action.value === 'substitution' ? 'subOff' : 'pick',
+      action,
+    })
+  }
+
+  function handlePickPlayer(player, side) {
+    if (!flow || logging || !loggingOpen) return
+    const row = lineups.find((l) => l.athlete_id === player.athlete_id)
+
+    if (flow.kind === 'pick') {
+      const { action } = flow
+      if (!canLogOn(row, action.value)) {
+        setHint('Substitutes can only receive a yellow or red card')
+        return
+      }
+      if (action.value === 'substitution') {
+        setFlow({ kind: 'subOn', action, offId: player.athlete_id, offSide: side })
+        return
+      }
+      if (action.value === 'goal') {
+        setFlow({ kind: 'assist', action, scorerId: player.athlete_id, scorerSide: side })
+        return
+      }
+      postLog({
+        athlete_id: player.athlete_id,
+        action_type: action.value,
+        is_scoring: action.scoring,
+        notes: null,
+      })
+    } else if (flow.kind === 'assist') {
+      if (player.athlete_id === flow.scorerId) return
+      if (!row?.is_starter) {
+        setHint('The assist must come from a player on the pitch')
+        return
+      }
+      postLog({
+        athlete_id: flow.scorerId,
+        action_type: 'goal',
+        is_scoring: true,
+        assist_athlete_id: player.athlete_id,
+      })
+    } else if (flow.kind === 'subOff') {
+      if (!row?.is_starter) {
+        setHint('Swap a starting player for a substitute')
+        return
+      }
+      setFlow({ kind: 'subOn', action: flow.action, offId: player.athlete_id, offSide: side })
+    }
+  }
+
+  function handlePickBench(row, side) {
+    if (!flow || logging || !loggingOpen) return
+
+    if (flow.kind === 'pick') {
+      if (!canLogOn(row, flow.action.value)) {
+        setHint('Substitutes can only receive a yellow or red card')
+        return
+      }
+      postLog({
+        athlete_id: row.athlete_id,
+        action_type: flow.action.value,
+        is_scoring: flow.action.scoring,
+        notes: null,
+      })
+    } else if (flow.kind === 'subOn') {
+      if (side !== flow.offSide) {
+        setHint('Pick a substitute from the same team')
+        return
+      }
+      if (row.is_starter) {
+        setHint('Pick a substitute (a bench player)')
+        return
+      }
+      postLog({
+        athlete_id: flow.offId,
+        action_type: 'substitution',
+        is_scoring: false,
+        substitute_athlete_id: row.athlete_id,
+      })
+    } else if (flow.kind === 'assist') {
+      setHint('The assist must come from a player on the pitch')
+    }
+  }
+
+  function handleOpponentGoal() {
+    if (!flow || logging || !loggingOpen) return
+    if (flow.kind === 'pick' && flow.action.value === 'goal') {
+      postLog({ athlete_id: null, action_type: 'goal', is_scoring: true, notes: null })
     }
   }
 
@@ -170,7 +349,7 @@ function LiveMatch() {
   }
 
   function openEdit(entry) {
-    setPendingAction(null)
+    setFlow(null)
     setEditingEntryId(entry.id)
     setEditForm({
       for: entry.athlete_id ? String(entry.athlete_id) : 'opponent',
@@ -233,85 +412,197 @@ function LiveMatch() {
     }
   }
 
-  if (loading) {
+  const header = (
+    <div className="live-header">
+      <div>
+        <span className="dashboard-eyebrow">Live match</span>
+        <h1>
+          {isFixture
+            ? `${homeName} vs ${awayName}`
+            : (event.event_type === 'match'
+              ? `vs ${event.opponent || 'Opponent TBD'}`
+              : (event.title || 'Training session'))}
+        </h1>
+      </div>
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        {activeStatus === 'live' && (
+          <span className="live-pulse">
+            <span className="live-pulse-dot" />
+            <span style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#e04040' }}>Live</span>
+          </span>
+        )}
+        {loggingOpen && (
+          <button
+            type="button"
+            className="btn btn-danger"
+            disabled={endingFixture}
+            onClick={handleEndFixture}
+          >
+            {endingFixture ? 'Ending...' : (isFixture ? 'End fixture' : 'End event')}
+          </button>
+        )}
+        <Link to={summaryPath} className="btn btn-ghost">Summary</Link>
+      </div>
+    </div>
+  )
+
+  // --- Lineup gate: nobody logs until the starting XIs exist. ---
+  if (!lineupsSet) {
+    if (canLog && activeStatus !== 'completed' && activeStatus !== 'cancelled') {
+      return (
+        <Layout>
+          {header}
+          {error && <div className="roster-error">{error}</div>}
+          <LineupWizard
+            homeName={homeName}
+            awayName={isFixture ? awayName : null}
+            homeRoster={homeRoster}
+            awayRoster={isFixture ? awayRoster : null}
+            saving={savingLineup}
+            onSave={handleSaveLineup}
+          />
+        </Layout>
+      )
+    }
     return (
       <Layout>
-        <p className="roster-status">Loading live match...</p>
+        {header}
+        <div className="roster-empty">
+          <p>Waiting for the home coach to set the starting lineups.</p>
+        </div>
       </Layout>
     )
   }
 
-  if (!detail) {
-    return (
-      <Layout>
-        {error && <div className="roster-error">{error}</div>}
-      </Layout>
-    )
-  }
-
-  // For simple events, fall back to summary if not live.
-  if (!isFixture && detail.event.status !== 'live') {
+  // Simple events used to bounce straight to the summary before going live;
+  // now the coach may set the XI pre-match, so keep them here with a
+  // read-only pitch until kickoff. Finished events still redirect.
+  if (!isFixture && activeStatus !== 'live') {
+    if (activeStatus === 'scheduled' && canLog) {
+      return (
+        <Layout>
+          {header}
+          {error && <div className="roster-error">{error}</div>}
+          <div className="live-note">
+            Lineups are set. The match starts at kickoff — come back then to log actions.
+          </div>
+          <Pitch homePlayers={withRatings(homeSide.starters)} awayPlayers={[]} />
+        </Layout>
+      )
+    }
     return <Navigate to={`/events/${entityId}`} replace />
   }
 
-  const event = isFixture ? detail.fixture : detail.event
-  const rawResult = detail.result || { home: 0, away: 0 }
-  const result = isFixture
-    ? rawResult
-    : { home: rawResult.squad ?? 0, away: rawResult.opponent ?? 0 }
-  const timeline = detail.timeline || []
-  const canLog = isFixture ? detail.canLog : true
+  // --- Live / scheduled fixture view with the pitch. ---
+  const fadedIds = (() => {
+    if (!flow) return null
+    const set = new Set()
+    if (flow.kind === 'assist') {
+      for (const r of lineups) {
+        if (!r.is_starter || r.athlete_id === flow.scorerId) set.add(r.athlete_id)
+      }
+    }
+    return set
+  })()
 
-  const homeName = isFixture ? event.home_squad_name : 'Your Squad'
-  const awayName = isFixture ? event.away_squad_name : (event.opponent || 'Opponent')
-  const summaryPath = isFixture ? `/events/${event.event_id}` : `/events/${entityId}`
+  const selectedId =
+    flow?.kind === 'assist' ? flow.scorerId
+      : flow?.kind === 'subOn' ? flow.offId
+        : null
+
+  const assistCandidates =
+    flow?.kind === 'assist'
+      ? lineups.filter(
+        (r) => r.team_side === flow.scorerSide && r.is_starter && r.athlete_id !== flow.scorerId
+      )
+      : []
+
+  const subBench =
+    flow?.kind === 'subOn'
+      ? (flow.offSide === 'home' ? homeSide.bench : awaySide.bench)
+      : []
+
+  const flowBanner = (() => {
+    if (!flow) return null
+    if (flow.kind === 'pick') {
+      const cardFlow = flow.action.value === 'yellow_card' || flow.action.value === 'red_card'
+      return `Log ${flow.action.label}: tap a player on the pitch${
+        cardFlow ? ' or a substitute below' : ''
+      }.`
+    }
+    if (flow.kind === 'assist') {
+      return `Goal — ${nameById.get(flow.scorerId) || 'scorer'}. Tap the assister (optional).`
+    }
+    if (flow.kind === 'subOff') return 'Substitution: tap the player coming off.'
+    if (flow.kind === 'subOn') {
+      return `${nameById.get(flow.offId) || 'Player'} off — tap the substitute coming on.`
+    }
+    return null
+  })()
+
+  const benchChip = (row, side) => {
+    let pickable = false
+    if (flow && loggingOpen && !logging) {
+      if (flow.kind === 'pick') pickable = canLogOn(row, flow.action.value)
+      else if (flow.kind === 'subOn') pickable = side === flow.offSide && !row.is_starter
+    }
+    const rating = ratingOf(row.athlete_id)
+    const color = rating != null ? ratingColor(rating) : null
+    return (
+      <button
+        key={`${side}-${row.athlete_id}`}
+        type="button"
+        className={`live-bench-chip${pickable ? ' is-pickable' : ''}${flow && !pickable ? ' is-muted' : ''}`}
+        onClick={() => handlePickBench(row, side)}
+      >
+        {row.photo ? (
+          <img className="live-bench-img" src={row.photo} alt="" />
+        ) : (
+          <span className="live-bench-initials">{initialsOf(row.name)}</span>
+        )}
+        <span className="live-bench-name">
+          {row.squad_number != null ? `#${row.squad_number} ` : ''}{row.name}
+        </span>
+        {color && (
+          <span className="live-bench-rating" style={{ background: color.bg, color: color.fg }}>
+            {rating.toFixed(1)}
+          </span>
+        )}
+      </button>
+    )
+  }
+
+  // Linked assists fold into their goal's row instead of standing alone.
+  const visibleTimeline = timeline.filter((e) => !isLinkedAssist(e))
 
   return (
     <Layout>
-      <div className="live-header">
-        <div>
-          <span className="dashboard-eyebrow">Live match</span>
-          <h1>
-            {isFixture
-              ? `${homeName} vs ${awayName}`
-              : (event.event_type === 'match'
-                ? `vs ${event.opponent || 'Opponent TBD'}`
-                : (event.title || 'Training session'))}
-          </h1>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          {activeStatus === 'live' && (
-            <span className="live-pulse">
-              <span className="live-pulse-dot" />
-              <span style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#e04040' }}>Live</span>
-            </span>
-          )}
-          {activeStatus === 'live' && canLog && (
-            <button
-              type="button"
-              className="btn btn-danger"
-              disabled={endingFixture}
-              onClick={handleEndFixture}
-            >
-              {endingFixture ? 'Ending...' : (isFixture ? 'End fixture' : 'End event')}
-            </button>
-          )}
-          <Link to={summaryPath} className="btn btn-ghost">Summary</Link>
-        </div>
-      </div>
+      {header}
 
       {error && <div className="roster-error">{error}</div>}
 
       <div className="live-scoreboard">
-        <span className="live-team">{homeName}</span>
+        <span className="live-team">
+          {homeName}
+          {homeFormation && <span className="live-formation-chip">{homeFormation}</span>}
+        </span>
         <div className="live-score-center">
           <span className="live-minute">{clockMinute}'</span>
           <span className="live-score">{result.home} - {result.away}</span>
         </div>
-        <span className="live-team live-team-right">{awayName}</span>
+        <span className="live-team live-team-right">
+          {awayName}
+          {awayFormation && <span className="live-formation-chip">{awayFormation}</span>}
+        </span>
       </div>
 
-      {canLog && (
+      {activeStatus === 'scheduled' && (
+        <div className="live-note">
+          Kicks off at {event.event_date ? new Date(event.event_date).toLocaleString() : 'TBD'} — lineups are set.
+        </div>
+      )}
+
+      {loggingOpen && (
         <>
           <h3 className="live-section-heading">Log Event</h3>
           <div className="live-action-grid">
@@ -319,56 +610,136 @@ function LiveMatch() {
               <button
                 key={action.value}
                 type="button"
-                className={`live-action-btn live-action-${action.tone}`}
-                onClick={() => { closeEdit(); setPendingAction(action) }}
+                className={`live-action-btn live-action-${action.tone}${
+                  flow?.action?.value === action.value ? ' is-active' : ''
+                }`}
+                onClick={() => handleActionClick(action)}
               >
                 {action.label}
               </button>
             ))}
           </div>
 
-          {pendingAction && (
-            <div className="live-who-panel">
-              <div className="live-who-header">
-                <span>Who for: {pendingAction.label}?</span>
-                <button type="button" className="btn btn-ghost" onClick={() => setPendingAction(null)}>
+          {flow && (
+            <div className="live-flow-panel">
+              <div className="live-flow-header">
+                <span>{flowBanner}</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={logging}
+                  onClick={() => { setFlow(null); setHint('') }}
+                >
                   Cancel
                 </button>
               </div>
-              <div className="live-who-grid">
-                {athletes.map((a) => (
+              {hint && <p className="live-flow-hint">{hint}</p>}
+
+              {flow.kind === 'assist' && (
+                <div className="live-flow-grid">
                   <button
-                    key={a.id}
                     type="button"
-                    className="live-who-btn"
+                    className="live-who-btn live-who-opponent"
                     disabled={logging}
-                    onClick={() => handleLog(a.id)}
+                    onClick={() =>
+                      postLog({
+                        athlete_id: flow.scorerId,
+                        action_type: 'goal',
+                        is_scoring: true,
+                      })}
                   >
-                    {a.squad_number != null ? `#${a.squad_number} ` : ''}{a.name}
+                    No assist
                   </button>
-                ))}
-                <button
-                  type="button"
-                  className="live-who-btn live-who-opponent"
-                  disabled={logging}
-                  onClick={() => handleLog('opponent')}
-                >
-                  Opponent
-                </button>
-              </div>
+                  {assistCandidates.map((r) => (
+                    <button
+                      key={r.athlete_id}
+                      type="button"
+                      className="live-who-btn"
+                      disabled={logging}
+                      onClick={() =>
+                        postLog({
+                          athlete_id: flow.scorerId,
+                          action_type: 'goal',
+                          is_scoring: true,
+                          assist_athlete_id: r.athlete_id,
+                        })}
+                    >
+                      {r.squad_number != null ? `#${r.squad_number} ` : ''}{r.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {flow.kind === 'subOn' && (
+                <div className="live-flow-grid">
+                  {subBench.length === 0 && (
+                    <p className="live-flow-hint">No substitutes named on the bench.</p>
+                  )}
+                  {subBench.map((r) => (
+                    <button
+                      key={r.athlete_id}
+                      type="button"
+                      className="live-who-btn"
+                      disabled={logging}
+                      onClick={() => handlePickBench(r, flow.offSide)}
+                    >
+                      {r.squad_number != null ? `#${r.squad_number} ` : ''}{r.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </>
       )}
 
+      <Pitch
+        homePlayers={withRatings(homeSide.starters)}
+        awayPlayers={withRatings(awaySide.starters)}
+        selectedId={selectedId}
+        fadedIds={fadedIds}
+        onSelect={loggingOpen ? handlePickPlayer : undefined}
+      />
+
+      <div className="live-bench">
+        <div className="live-bench-col">
+          <span className="live-bench-title">{homeName} · bench</span>
+          <div className="live-bench-chips">
+            {homeSide.bench.length === 0 && <span className="live-bench-empty">No substitutes</span>}
+            {homeSide.bench.map((r) => benchChip(r, 'home'))}
+            {!isFixture && (
+              <button
+                type="button"
+                className={`live-bench-chip live-bench-opponent${
+                  flow?.kind === 'pick' && flow.action.value === 'goal' ? ' is-pickable' : ''
+                }`}
+                onClick={handleOpponentGoal}
+              >
+                <span className="live-bench-initials live-bench-initials-opponent">?</span>
+                <span className="live-bench-name">Opponent (no player)</span>
+              </button>
+            )}
+          </div>
+        </div>
+        {isFixture && (
+          <div className="live-bench-col">
+            <span className="live-bench-title">{awayName} · bench</span>
+            <div className="live-bench-chips">
+              {awaySide.bench.length === 0 && <span className="live-bench-empty">No substitutes</span>}
+              {awaySide.bench.map((r) => benchChip(r, 'away'))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <h3 className="live-section-heading">Timeline</h3>
-      {timeline.length === 0 ? (
+      {visibleTimeline.length === 0 ? (
         <div className="roster-empty">
           <p>No actions logged yet.</p>
         </div>
       ) : (
         <div className="live-timeline">
-          {timeline.map((entry) => {
+          {visibleTimeline.map((entry) => {
             const minuteClass = entry.action_type === 'goal'
               ? 'live-timeline-minute--goal'
               : entry.action_type.includes('card')
@@ -377,6 +748,8 @@ function LiveMatch() {
                   ? 'live-timeline-minute--penalty'
                   : ''
             const isNew = newEntryIds.has(entry.id)
+            const assist = entry.action_type === 'goal' ? assistForGoal(timeline, entry.id) : null
+            const subOnId = entry.action_type === 'substitution' ? parseSubstitutionNotes(entry.notes) : null
             return (
             <div key={entry.id}>
               <div className={`live-timeline-entry${isNew ? ' live-timeline-entry--new' : ''}`}>
@@ -386,6 +759,16 @@ function LiveMatch() {
                 <div className="live-timeline-body">
                   <span className="live-timeline-action">{formatActionType(entry.action_type)}</span>
                   <span className="live-timeline-who">{entry.athlete_name || 'Opponent'}</span>
+                  {assist && (
+                    <span className="live-timeline-detail">
+                      assist: {assist.athlete_name || nameById.get(assist.athlete_id) || '—'}
+                    </span>
+                  )}
+                  {subOnId != null && (
+                    <span className="live-timeline-detail">
+                      on: {nameById.get(subOnId) || `#${subOnId}`}
+                    </span>
+                  )}
                 </div>
                 {canLog && (
                   <div className="live-timeline-actions">
@@ -408,7 +791,7 @@ function LiveMatch() {
                         value={editForm.for}
                         onChange={(e) => setEditForm({ ...editForm, for: e.target.value })}
                       >
-                        {athletes.map((a) => (
+                        {homeRoster.map((a) => (
                           <option key={a.id} value={a.id}>
                             {a.name}{a.squad_number != null ? ` (#${a.squad_number})` : ''}
                           </option>

@@ -57,6 +57,18 @@ describe('US17 (integration) — per-athlete summary, aggregated across real eve
       [squadId]
     )
 
+    // Live logging is lineup-gated: name the starting XI on each event first.
+    for (const event of [event1.rows[0], event2.rows[0]]) {
+      const lineupRes = await request(app)
+        .put(`/api/events/${event.id}/lineup`)
+        .send({
+          lineups: [
+            { athlete_id: athlete.id, team_side: 'home', is_starter: true, pos_x: 50, pos_y: 50 },
+          ],
+        })
+      expect(lineupRes.status).toBe(200)
+    }
+
     await request(app)
       .post(`/api/events/${event1.rows[0].id}/logs`)
       .send({ athlete_id: athlete.id, action_type: 'goal', is_scoring: true })

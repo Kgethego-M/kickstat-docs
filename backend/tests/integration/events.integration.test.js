@@ -89,10 +89,63 @@ async function createOtherSquad(clerkId, { rosterSize = 11 } = {}) {
   return { userId: userResult.rows[0].id, squadId: squadResult.rows[0].id }
 }
 
+// Live logging is gated on a lineup existing. For simple events that's the
+// coach's own XI; for fixtures both sides are set. Starters go on a simple
+// grid, everyone else is benched.
+async function setEventLineup(eventId, { starterIds } = {}) {
+  const athletes = await pool.query(
+    'SELECT id FROM athletes WHERE squad_id = $1 ORDER BY name',
+    [squadId]
+  )
+  const lineups = athletes.rows.map((a, i) => {
+    const isStarter = starterIds ? starterIds.includes(a.id) : i < 11
+    return {
+      athlete_id: a.id,
+      team_side: 'home',
+      is_starter: isStarter,
+      pos_x: isStarter ? 10 + (i % 4) * 26 : null,
+      pos_y: isStarter ? 8 + Math.floor(i / 4) * 24 : null,
+    }
+  })
+  const res = await request(app).put(`/api/events/${eventId}/lineup`).send({ lineups })
+  expect(res.status).toBe(200)
+}
+
+async function setFixtureLineup(fixtureId, { homeStarterIds } = {}) {
+  const detail = await request(app)
+    .get(`/api/fixtures/${fixtureId}`)
+    .set('x-test-clerk-user-id', 'test_clerk_user')
+
+  const build = (roster, side, starterIds) => roster.map((a, i) => {
+    const isStarter = starterIds ? starterIds.includes(a.id) : i < 11
+    return {
+      athlete_id: a.id,
+      team_side: side,
+      is_starter: isStarter,
+      pos_x: isStarter ? 10 + (i % 4) * 26 : null,
+      pos_y: isStarter ? (side === 'home' ? 8 + Math.floor(i / 4) * 24 : 92 - Math.floor(i / 4) * 24) : null,
+    }
+  })
+
+  const res = await request(app)
+    .put(`/api/fixtures/${fixtureId}/lineup`)
+    .set('x-test-clerk-user-id', 'test_clerk_user')
+    .send({
+      lineups: [
+        ...build(detail.body.rosters.home, 'home', homeStarterIds),
+        ...build(detail.body.rosters.away, 'away'),
+      ],
+    })
+
+  expect(res.status).toBe(200)
+  return { home: detail.body.rosters.home, away: detail.body.rosters.away }
+}
+
 describe('US13 (integration) — log a scoring moment during a live event', () => {
   test('AC: creates a real row with athlete, action type, and timestamp', async () => {
     const event = await createEvent()
     const athlete = await createAthlete()
+    await setEventLineup(event.id)
 
     const res = await request(app)
       .post(`/api/events/${event.id}/logs`)
@@ -122,11 +175,16 @@ describe('US13 (integration) — log a scoring moment during a live event', () =
       [otherSquad.rows[0].id]
     )
 
+    // Own squad lineup first, so the squad-ownership check is what fails.
+    await createAthlete()
+    await setEventLineup(event.id)
+
     const res = await request(app)
       .post(`/api/events/${event.id}/logs`)
       .send({ athlete_id: otherAthlete.rows[0].id, action_type: 'goal' })
 
     expect(res.status).toBe(400)
+    expect(res.body.error).toBe('Athlete does not belong to this squad')
   })
 
   test('US6 — a cancelled event no longer accepts new log entries', async () => {
@@ -150,6 +208,7 @@ describe('US14 (integration) — edit or undo a log entry', () => {
   test('AC: edit persists to the real row', async () => {
     const event = await createEvent()
     const athlete = await createAthlete()
+    await setEventLineup(event.id)
     const created = await request(app)
       .post(`/api/events/${event.id}/logs`)
       .send({ athlete_id: athlete.id, action_type: 'goal', minute: 10 })
@@ -169,6 +228,7 @@ describe('US14 (integration) — edit or undo a log entry', () => {
   test('AC: undo soft-deletes — row still exists but drops out of the live timeline', async () => {
     const event = await createEvent()
     const athlete = await createAthlete()
+    await setEventLineup(event.id)
     const created = await request(app)
       .post(`/api/events/${event.id}/logs`)
       .send({ athlete_id: athlete.id, action_type: 'goal' })
@@ -190,6 +250,7 @@ describe('US15 (integration) — final result and penalties', () => {
   test('AC: event detail aggregates real rows into a result + timeline', async () => {
     const event = await createEvent()
     const athlete = await createAthlete()
+    await setEventLineup(event.id)
 
     await request(app)
       .post(`/api/events/${event.id}/logs`)
@@ -214,6 +275,7 @@ describe('US16 (integration) — near-real-time timeline', () => {
   test('AC: a newly logged action shows up immediately on the logs endpoint', async () => {
     const event = await createEvent()
     const athlete = await createAthlete()
+    await setEventLineup(event.id)
 
     await request(app).post(`/api/events/${event.id}/logs`).send({ athlete_id: athlete.id, action_type: 'save' })
 
@@ -321,6 +383,10 @@ describe('League / tournament events', () => {
     const homeFixture = fixturesRes.body.find((f) => f.home_squad_id === squadId)
 
     const athlete = await createAthlete()
+    const rosters = await setFixtureLineup(homeFixture.id)
+    await setFixtureLineup(homeFixture.id, {
+      homeStarterIds: [...rosters.home.slice(0, 10).map((a) => a.id), athlete.id],
+    })
 
     await request(app)
       .post(`/api/fixtures/${homeFixture.id}/logs`)
@@ -367,6 +433,11 @@ describe('League / tournament events', () => {
 
     const scorer = await createAthlete({ name: 'Prolific Striker' })
     const assister = await createAthlete({ name: 'Creative Playmaker' })
+
+    const rosters = await setFixtureLineup(homeFixture.id)
+    await setFixtureLineup(homeFixture.id, {
+      homeStarterIds: [...rosters.home.slice(0, 9).map((a) => a.id), scorer.id, assister.id],
+    })
 
     await request(app)
       .post(`/api/fixtures/${homeFixture.id}/logs`)

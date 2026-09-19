@@ -90,6 +90,39 @@ async function createLeague() {
   return { eventId, fixtureId: homeFixture.id, awaySquadId: squad2.rows[0].id }
 }
 
+// Logging is gated on the starting lineups existing, so most tests set them
+// first: 11 starters per side (or an explicit starter list) on a simple
+// grid, everyone else benched.
+async function setFixtureLineup(fixtureId, { homeStarterIds, awayStarterIds } = {}) {
+  const detail = await request(app)
+    .get(`/api/fixtures/${fixtureId}`)
+    .set('x-test-clerk-user-id', 'test_clerk_user')
+
+  const build = (roster, side, starterIds) => roster.map((a, i) => {
+    const isStarter = starterIds ? starterIds.includes(a.id) : i < 11
+    return {
+      athlete_id: a.id,
+      team_side: side,
+      is_starter: isStarter,
+      pos_x: isStarter ? 10 + (i % 4) * 26 : null,
+      pos_y: isStarter ? (side === 'home' ? 8 + Math.floor(i / 4) * 24 : 92 - Math.floor(i / 4) * 24) : null,
+    }
+  })
+
+  const res = await request(app)
+    .put(`/api/fixtures/${fixtureId}/lineup`)
+    .set('x-test-clerk-user-id', 'test_clerk_user')
+    .send({
+      lineups: [
+        ...build(detail.body.rosters.home, 'home', homeStarterIds),
+        ...build(detail.body.rosters.away, 'away', awayStarterIds),
+      ],
+    })
+
+  expect(res.status).toBe(200)
+  return { home: detail.body.rosters.home, away: detail.body.rosters.away }
+}
+
 describe('US15/US16 — fixture detail and live logging', () => {
   test('AC: GET fixture detail returns result and timeline', async () => {
     const { fixtureId } = await createLeague()
@@ -118,17 +151,12 @@ describe('US15/US16 — fixture detail and live logging', () => {
 
   test('AC: home team can log a goal and result updates', async () => {
     const { fixtureId } = await createLeague()
-
-    const athleteRes = await request(app)
-      .post('/api/athletes')
-      .set('x-test-clerk-user-id', 'test_clerk_user')
-      .send({ name: 'Striker', squad_number: 9 })
-    const athleteId = athleteRes.body.id
+    const { home } = await setFixtureLineup(fixtureId)
 
     const logRes = await request(app)
       .post(`/api/fixtures/${fixtureId}/logs`)
       .set('x-test-clerk-user-id', 'test_clerk_user')
-      .send({ athlete_id: athleteId, action_type: 'goal', is_scoring: true, value: 1, minute: 12 })
+      .send({ athlete_id: home[0].id, action_type: 'goal', is_scoring: true, value: 1, minute: 12 })
 
     expect(logRes.status).toBe(201)
 
@@ -140,8 +168,9 @@ describe('US15/US16 — fixture detail and live logging', () => {
     expect(detail.body.timeline).toHaveLength(1)
   })
 
-  test('rejects logging for an athlete from another squad', async () => {
+  test('rejects logging for an athlete outside the match-day squad', async () => {
     const { fixtureId, awaySquadId } = await createLeague()
+    await setFixtureLineup(fixtureId)
 
     const athleteRes = await pool.query(
       'INSERT INTO athletes (squad_id, name) VALUES ($1, $2) RETURNING id',
@@ -155,6 +184,7 @@ describe('US15/US16 — fixture detail and live logging', () => {
       .send({ athlete_id: awayAthleteId, action_type: 'goal' })
 
     expect(res.status).toBe(400)
+    expect(res.body.error).toBe('Player is not in the match-day squad')
   })
 
   test('US6 — a cancelled fixture no longer accepts new log entries', async () => {
@@ -180,17 +210,12 @@ describe('US15/US16 — fixture detail and live logging', () => {
 
   test('AC: edit and undo a fixture log entry', async () => {
     const { fixtureId } = await createLeague()
-
-    const athleteRes = await request(app)
-      .post('/api/athletes')
-      .set('x-test-clerk-user-id', 'test_clerk_user')
-      .send({ name: 'Midfielder' })
-    const athleteId = athleteRes.body.id
+    const { home } = await setFixtureLineup(fixtureId)
 
     const created = await request(app)
       .post(`/api/fixtures/${fixtureId}/logs`)
       .set('x-test-clerk-user-id', 'test_clerk_user')
-      .send({ athlete_id: athleteId, action_type: 'goal', minute: 5 })
+      .send({ athlete_id: home[0].id, action_type: 'goal', minute: 5 })
 
     const logId = created.body.id
 
