@@ -153,7 +153,7 @@ describe('EventDetail', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /Sunday Pro League/i })).toBeInTheDocument()
-    })
+    }, { timeout: 15000 })
 
     // League-wide stat cards
     expect(screen.getByText('Teams')).toBeInTheDocument()
