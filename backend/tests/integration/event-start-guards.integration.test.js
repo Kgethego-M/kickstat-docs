@@ -86,6 +86,14 @@ async function createLeagueFixture(overrides = {}) {
   return fixtureRes.rows[0]
 }
 
+async function seedAthlete(targetSquadId, name = 'Matchday Player', squadNumber = 1) {
+  const res = await pool.query(
+    'INSERT INTO athletes (squad_id, name, squad_number) VALUES ($1, $2, $3) RETURNING *',
+    [targetSquadId, name, squadNumber]
+  )
+  return res.rows[0]
+}
+
 describe('Scheduling guard — events cannot be created in the past', () => {
   test('AC: an event_date in the past is rejected and nothing is created', async () => {
     const res = await request(app)
@@ -123,8 +131,26 @@ describe('Start-time guard — an event can only happen once its scheduled time 
     expect(after.rows[0].status).toBe('scheduled')
   })
 
-  test('AC: logging once the scheduled time has passed starts the event and anchors started_at', async () => {
+  test('AC: naming the starting XI after kickoff starts the event and anchors started_at, then logging works', async () => {
     const event = await createEvent({ event_date: oneHourAgo })
+    const athlete = await seedAthlete(squadId)
+
+    // Live logging is lineup-gated, so the first live action is the coach
+    // naming a starting XI — once kickoff has passed that itself starts the
+    // event and anchors started_at.
+    const lineup = await request(app)
+      .put(`/api/events/${event.id}/lineup`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({
+        lineups: [
+          { athlete_id: athlete.id, team_side: 'home', is_starter: true, pos_x: 50, pos_y: 50 },
+        ],
+      })
+    expect(lineup.status).toBe(200)
+
+    const after = await pool.query('SELECT status, started_at FROM events WHERE id = $1', [event.id])
+    expect(after.rows[0].status).toBe('live')
+    expect(after.rows[0].started_at).not.toBeNull()
 
     const res = await request(app)
       .post(`/api/events/${event.id}/logs`)
@@ -132,10 +158,6 @@ describe('Start-time guard — an event can only happen once its scheduled time 
       .send({ action_type: 'goal' })
 
     expect(res.status).toBe(201)
-
-    const after = await pool.query('SELECT status, started_at FROM events WHERE id = $1', [event.id])
-    expect(after.rows[0].status).toBe('live')
-    expect(after.rows[0].started_at).not.toBeNull()
   })
 
   test('AC: manually starting an event sets started_at and re-starting does not reset it', async () => {
@@ -174,8 +196,27 @@ describe('Start-time guard — fixtures follow the same rules', () => {
     expect(res.body.error).toMatch(/not started yet/i)
   })
 
-  test('AC: logging after kickoff starts the fixture and anchors started_at', async () => {
+  test('AC: setting the lineups after kickoff starts the fixture and anchors started_at, then logging works', async () => {
     const fixture = await createLeagueFixture({ event_date: oneHourAgo })
+    const homePlayer = await seedAthlete(squadId, 'Home Striker')
+    const awayPlayer = await seedAthlete(fixture.away_squad_id, 'Away Striker')
+
+    // The lineup gate makes naming the XIs the first live action; after
+    // kickoff that itself starts the fixture and anchors started_at.
+    const lineup = await request(app)
+      .put(`/api/fixtures/${fixture.id}/lineup`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({
+        lineups: [
+          { athlete_id: homePlayer.id, team_side: 'home', is_starter: true, pos_x: 50, pos_y: 20 },
+          { athlete_id: awayPlayer.id, team_side: 'away', is_starter: true, pos_x: 50, pos_y: 80 },
+        ],
+      })
+    expect(lineup.status).toBe(200)
+
+    const after = await pool.query('SELECT status, started_at FROM fixtures WHERE id = $1', [fixture.id])
+    expect(after.rows[0].status).toBe('live')
+    expect(after.rows[0].started_at).not.toBeNull()
 
     const res = await request(app)
       .post(`/api/fixtures/${fixture.id}/logs`)
@@ -183,9 +224,5 @@ describe('Start-time guard — fixtures follow the same rules', () => {
       .send({ action_type: 'goal' })
 
     expect(res.status).toBe(201)
-
-    const after = await pool.query('SELECT status, started_at FROM fixtures WHERE id = $1', [fixture.id])
-    expect(after.rows[0].status).toBe('live')
-    expect(after.rows[0].started_at).not.toBeNull()
   })
 })

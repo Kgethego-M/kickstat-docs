@@ -2,6 +2,14 @@ const express = require('express');
 const pool = require('../db');
 const { requireAuth, getAuth } = require('../middleware/auth');
 const { getOwnedSquadId, getOrCreateUserId } = require('./_squad');
+const {
+  getLineup,
+  getAthleteSquads,
+  validateLineupPayload,
+  saveLineup,
+  lineupCheckForLog,
+  applySubstitution,
+} = require('../lib/lineups');
 
 const router = express.Router();
 
@@ -43,7 +51,7 @@ async function getEventFixtures(pool, eventId, squadId = null) {
 
 async function getFixtureLogs(pool, fixtureId) {
   const result = await pool.query(
-    `SELECT l.*, a.name AS athlete_name
+    `SELECT l.*, a.name AS athlete_name, a.squad_id AS athlete_squad_id
      FROM log_entries l
      LEFT JOIN athletes a ON a.id = l.athlete_id
      WHERE l.fixture_id = $1 AND l.deleted_at IS NULL
@@ -130,11 +138,13 @@ async function computeStandings(pool, eventId) {
     if (fixture.status !== 'completed') continue;
 
     const logs = await getFixtureLogs(pool, fixture.id);
+    const sideOf = (l) =>
+      l.athlete_id === null || l.athlete_squad_id === fixture.away_squad_id ? 'away' : 'home';
     const homeGoals = logs
-      .filter((l) => l.is_scoring && l.athlete_id !== null)
+      .filter((l) => l.is_scoring && sideOf(l) === 'home')
       .reduce((sum, l) => sum + l.value, 0);
     const awayGoals = logs
-      .filter((l) => l.is_scoring && l.athlete_id === null)
+      .filter((l) => l.is_scoring && sideOf(l) === 'away')
       .reduce((sum, l) => sum + l.value, 0);
 
     const home = teamMap.get(fixture.home_squad_id);
@@ -409,11 +419,14 @@ router.get('/:id', requireAuth(), async (req, res) => {
       (l) => l.action_type.includes('penalty') || l.action_type.includes('card')
     );
 
+    const lineups = await getLineup(pool, { eventId: event.id });
+
     res.json({
       event,
       result: { squad: squadScore, opponent: opponentScore },
       penalties,
       timeline,
+      lineups,
     });
   } catch (err) {
     console.error('Error fetching event detail:', err.message);
@@ -653,6 +666,56 @@ router.get('/:id/stats', requireAuth(), async (req, res) => {
 
 // ---- Log entries, nested under an event — US13, US14, US16 ----
 
+// PUT /api/events/:id/lineup — set the starting XI + bench for a simple
+// event (own squad only; the opponent here is a free-text name). Logging
+// stays locked until a lineup exists.
+router.put('/:id/lineup', requireAuth(), async (req, res) => {
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const event = await loadEventWithAccess(pool, req.params.id, squadId);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    if (LEAGUE_FORMATS.has(event.format)) {
+      return res.status(400).json({ error: 'Use fixture endpoints to set league lineups' });
+    }
+    if (event.squad_id !== squadId) {
+      return res.status(403).json({ error: 'Only the host squad can set the lineup' });
+    }
+    if (event.status === 'cancelled' || event.status === 'completed') {
+      return res.status(400).json({ error: `Lineups cannot be changed once the event is ${event.status}` });
+    }
+
+    const { rows, error } = validateLineupPayload(req.body.lineups, { home: squadId, away: null });
+    if (error) {
+      return res.status(400).json({ error });
+    }
+
+    const squadByAthlete = await getAthleteSquads(pool, rows.map((r) => r.athleteId));
+    for (const r of rows) {
+      if (squadByAthlete.get(r.athleteId) !== squadId) {
+        return res.status(400).json({ error: 'Athlete does not belong to your squad' });
+      }
+    }
+
+    await saveLineup(pool, { eventId: event.id }, rows);
+
+    if (event.status === 'scheduled' && (!event.event_date || new Date(event.event_date).getTime() <= Date.now())) {
+      await pool.query(
+        "UPDATE events SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
+        [event.id]
+      );
+    }
+
+    res.json({ lineups: await getLineup(pool, { eventId: event.id }) });
+  } catch (err) {
+    console.error('Error saving event lineup:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/events/:id/logs — active log entries in order (live dashboard timeline)
 router.get('/:id/logs', requireAuth(), async (req, res) => {
   try {
@@ -720,7 +783,19 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
       return res.status(400).json({ error: 'Use fixture endpoints to log league/tournament actions' });
     }
 
-    if (athlete_id) {
+    const { assist_athlete_id, substitute_athlete_id } = req.body;
+    const actionType = action_type.trim();
+
+    // Lineups gate live logging: the starting XI must exist first, and
+    // benched players can only be booked.
+    const lineupRows = await getLineup(pool, { eventId: event.id });
+    if (lineupRows.length === 0) {
+      return res.status(400).json({ error: 'Set the starting lineups before logging' });
+    }
+    // A swap carries its own validation (starter off, substitute on), so the
+    // generic bench check only applies to the off player for plain entries.
+    const isSubstitutionSwap = actionType === 'substitution' && Boolean(substitute_athlete_id);
+    if (athlete_id && !isSubstitutionSwap) {
       const athleteCheck = await pool.query(
         'SELECT id FROM athletes WHERE id = $1 AND squad_id = $2',
         [athlete_id, squadId]
@@ -728,24 +803,86 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
       if (athleteCheck.rows.length === 0) {
         return res.status(400).json({ error: 'Athlete does not belong to this squad' });
       }
+      const lineupError = lineupCheckForLog(lineupRows, Number(athlete_id), actionType);
+      if (lineupError) {
+        return res.status(400).json({ error: lineupError });
+      }
     }
 
-    const result = await pool.query(
-      `INSERT INTO log_entries (event_id, athlete_id, action_type, is_scoring, value, minute, notes, logged_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [
-        req.params.id,
-        athlete_id || null,
-        action_type.trim(),
-        !!is_scoring,
-        value ?? 1,
-        minute ?? null,
-        notes || null,
-        userId,
-      ]
-    );
+    if (isSubstitutionSwap) {
+      const substitutionError = await applySubstitution(
+        pool, { eventId: event.id }, Number(athlete_id), Number(substitute_athlete_id)
+      );
+      if (substitutionError) {
+        return res.status(400).json({ error: substitutionError });
+      }
+    }
 
-    res.status(201).json(result.rows[0]);
+    // A goal may carry its assist in the same request; the assist becomes a
+    // linked log entry so stats and the timeline stay consistent.
+    let assistRow = null;
+    if (assist_athlete_id) {
+      if (actionType !== 'goal') {
+        return res.status(400).json({ error: 'An assist can only be logged with a goal' });
+      }
+      if (!athlete_id) {
+        return res.status(400).json({ error: 'Pick the goalscorer before the assist' });
+      }
+      assistRow = lineupRows.find((r) => r.athlete_id === Number(assist_athlete_id));
+      const scorerRow = lineupRows.find((r) => r.athlete_id === Number(athlete_id));
+      if (!assistRow || !scorerRow || assistRow.team_side !== scorerRow.team_side) {
+        return res.status(400).json({ error: 'The assist must come from the scoring team' });
+      }
+      if (!assistRow.is_starter) {
+        return res.status(400).json({ error: 'The assist must come from a player on the pitch' });
+      }
+      if (Number(assist_athlete_id) === Number(athlete_id)) {
+        return res.status(400).json({ error: 'The scorer cannot assist their own goal' });
+      }
+    }
+
+    // A substitution records who came on in its notes ("on:<athlete_id>")
+    // so the timeline can name both players without a schema change.
+    const entryNotes = actionType === 'substitution' && substitute_athlete_id
+      ? `on:${Number(substitute_athlete_id)}`
+      : (notes || null);
+
+    const client = await pool.connect();
+    let createdEntry;
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `INSERT INTO log_entries (event_id, athlete_id, action_type, is_scoring, value, minute, notes, logged_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [
+          req.params.id,
+          athlete_id || null,
+          actionType,
+          !!is_scoring,
+          value ?? 1,
+          minute ?? null,
+          entryNotes,
+          userId,
+        ]
+      );
+      createdEntry = result.rows[0];
+
+      if (assistRow) {
+        await client.query(
+          `INSERT INTO log_entries (event_id, athlete_id, action_type, is_scoring, value, minute, notes, logged_by, related_log_id)
+           VALUES ($1, $2, 'assist', false, 1, $3, NULL, $4, $5)`,
+          [req.params.id, Number(assist_athlete_id), minute ?? null, userId, createdEntry.id]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    res.status(201).json(createdEntry);
   } catch (err) {
     console.error('Error creating log entry:', err);
     res.status(500).json({ error: 'Server error', detail: err.message });
@@ -809,6 +946,12 @@ router.delete('/:id/logs/:logId', requireAuth(), async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(403).json({ error: 'Not authorized to undo this log entry' });
     }
+
+    // Undoing a goal also wipes its linked assist entries.
+    await pool.query(
+      'UPDATE log_entries SET deleted_at = now() WHERE related_log_id = $1 AND deleted_at IS NULL',
+      [req.params.logId]
+    );
 
     res.sendStatus(204);
   } catch (err) {
