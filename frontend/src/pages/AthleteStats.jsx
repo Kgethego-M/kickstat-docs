@@ -541,6 +541,11 @@ function AthleteStats() {
   const seed = Number(athlete.id) || 1
   const group = positionGroup(athlete.position)
 
+  // Parse tactical tags
+  const tags = athlete.tactical_tags
+    ? athlete.tactical_tags.split(',').map((t) => t.trim()).filter(Boolean)
+    : []
+
   // Same clearly-labelled estimate rule the roster cards use — no per-athlete
   // training data is tracked yet: injured < managed < ready.
   const readiness = currentInjury ? 25 : athlete.is_managed ? 60 : 95
@@ -650,6 +655,27 @@ function AthleteStats() {
           {gk && <SaveMapCard seed={seed} saves={gk.saves} conceded={gk.conceded} />}
           <RadarCard group={group} seed={seed} />
         </div>
+
+        {(tags.length > 0 || athlete.coach_notes) && (
+          <div className="ath-tactics-section">
+            {tags.length > 0 && (
+              <div className="ath-tactics-tags">
+                <h3 className="ath-section-title">Tactical profile</h3>
+                <div className="ath-tags-list">
+                  {tags.map((tag, i) => (
+                    <span key={i} className="ath-tag">{tag}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {athlete.coach_notes && (
+              <div className="ath-coach-notes">
+                <h3 className="ath-section-title">Coach notes</h3>
+                <p className="ath-notes-text">{athlete.coach_notes}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="ath-section-head">
           <h3 className="ath-section-title">Injury history</h3>

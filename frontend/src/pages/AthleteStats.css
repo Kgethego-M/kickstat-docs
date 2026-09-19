@@ -644,6 +644,54 @@
   color: var(--color-ink-soft);
 }
 
+/* ---------------------------------------------------------------------------
+   Tactics section — tags + coach notes
+--------------------------------------------------------------------------- */
+.ath-tactics-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.ath-tactics-tags {
+  margin-bottom: 16px;
+}
+
+.ath-tactics-tags:last-child {
+  margin-bottom: 0;
+}
+
+.ath-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ath-tag {
+  display: inline-block;
+  padding: 4px 12px;
+  background: var(--color-gold);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ath-coach-notes {
+  margin-top: 16px;
+}
+
+.ath-notes-text {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ath-heat-blob,
   .ath-radar-poly,
