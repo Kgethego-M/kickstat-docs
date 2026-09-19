@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import Roster from './pages/Roster'
 import AthleteStats from './pages/AthleteStats'
 import Compare from './pages/Compare'
+import TacticsBoard from './pages/TacticsBoard'
 import Setup from './pages/Setup'
 import AccountSettings from './pages/AccountSettings'
 import InviteAccept from './pages/InviteAccept'
@@ -60,6 +61,14 @@ function App() {
         element={
           <OnboardingGuard>
             <Compare />
+          </OnboardingGuard>
+        }
+      />
+      <Route
+        path="/tactics"
+        element={
+          <OnboardingGuard>
+            <TacticsBoard />
           </OnboardingGuard>
         }
       />
