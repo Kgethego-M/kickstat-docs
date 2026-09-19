@@ -5,6 +5,7 @@ import SignUpPage from './pages/SignUpPage'
 import Dashboard from './pages/Dashboard'
 import Roster from './pages/Roster'
 import AthleteStats from './pages/AthleteStats'
+import Compare from './pages/Compare'
 import Setup from './pages/Setup'
 import AccountSettings from './pages/AccountSettings'
 import InviteAccept from './pages/InviteAccept'
@@ -51,6 +52,14 @@ function App() {
         element={
           <OnboardingGuard>
             <AthleteStats />
+          </OnboardingGuard>
+        }
+      />
+      <Route
+        path="/compare"
+        element={
+          <OnboardingGuard>
+            <Compare />
           </OnboardingGuard>
         }
       />
