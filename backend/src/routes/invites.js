@@ -1,12 +1,11 @@
 const express = require('express')
 const crypto = require('crypto')
-const { Pool } = require('pg')
+const pool = require('../db')
 const { clerkClient } = require('@clerk/express')
 const { requireAuth, getAuth } = require('../middleware/auth')
 const { sendInviteEmail } = require('../lib/email')
 
 const router = express.Router()
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 
 // Shared by the assistant-invite form (Dashboard.jsx / Setup.jsx) and the
 // athlete-invite path (athletes.js, when an email is given on the add-athlete
