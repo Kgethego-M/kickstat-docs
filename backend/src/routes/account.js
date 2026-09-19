@@ -1,11 +1,10 @@
 const express = require('express');
-const { Pool } = require('pg');
+const pool = require('../db');
 const { requireAuth, getAuth } = require('../middleware/auth');
 const { getOrCreateUserId } = require('./_squad');
 const { deleteUserByClerkId } = require('../lib/userDeletion');
 
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // GET /api/account/me — role and basic profile info for the logged-in user.
 router.get('/me', requireAuth(), async (req, res) => {

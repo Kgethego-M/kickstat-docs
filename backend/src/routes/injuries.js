@@ -1,11 +1,10 @@
 const express = require('express');
-const { Pool } = require('pg');
+const pool = require('../db');
 const { requireAuth, getAuth } = require('../middleware/auth');
 const { getOwnedSquadId, getOwnedSquadIdForCoach, getOrCreateUserId } = require('./_squad');
 const { estimateReturn } = require('../lib/injury-estimator');
 
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function assertAthleteInSquad(athleteId, squadId) {
   const check = await pool.query(

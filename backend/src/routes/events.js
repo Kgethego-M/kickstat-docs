@@ -1,10 +1,9 @@
 const express = require('express');
-const { Pool } = require('pg');
+const pool = require('../db');
 const { requireAuth, getAuth } = require('../middleware/auth');
 const { getOwnedSquadId, getOrCreateUserId } = require('./_squad');
 
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const LEAGUE_FORMATS = new Set(['league', 'tournament']);
 

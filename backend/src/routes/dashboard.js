@@ -1,10 +1,9 @@
 const express = require('express');
-const { Pool } = require('pg');
+const pool = require('../db');
 const { requireAuth, getAuth } = require('../middleware/auth');
 const { getOwnedSquadId } = require('./_squad');
 
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const PERIOD_DAYS = { '7d': 7, '30d': 30, season: 365 };
 

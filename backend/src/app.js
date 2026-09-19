@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
 const { clerkMiddleware, requireAuth } = require('./middleware/auth');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
@@ -70,7 +69,9 @@ app.get('/api/me', requireAuth(), (req, res) => {
 // started_at + duration_minutes passes (falling back to event_date for rows
 // that went live before started_at existed). Manual buttons on the frontend
 // still work as an override (e.g. starting a delayed match early/late).
-const sweepPool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Shared pool from db.js — previously a second pool created just for the
+// sweep, which doubled this process's connection count.
+const sweepPool = require('./db');
 
 async function runAutoTransitionSweep() {
   try {
