@@ -537,7 +537,7 @@ function AthleteStats() {
     )
   }
 
-  const { athlete, injuries, currentInjury } = data
+  const { athlete, injuries, currentInjury, bmi } = data
   const seed = Number(athlete.id) || 1
   const group = positionGroup(athlete.position)
 
@@ -572,6 +572,10 @@ function AthleteStats() {
         { label: 'Yellow cards', value: agg.yellowCards, dark: true },
         { label: 'Red cards', value: agg.redCards, dark: true },
       ]
+
+  if (bmi != null) {
+    statCards.push({ label: 'BMI', value: bmi, accent: true, note: `${athlete.height_cm}cm / ${athlete.weight_kg}kg` })
+  }
 
   return (
     <Layout>
