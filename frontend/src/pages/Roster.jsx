@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
+import { fileToProfilePhoto } from '../lib/image'
 import './Roster.css'
 
 const emptyForm = {
@@ -71,6 +72,11 @@ function Roster() {
   const [editMode, setEditMode] = useState(false)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  // Photo uploads: the athlete currently saving (drives the card spinner),
+  // plus refs for the shared hidden file input and who it was opened for.
+  const [photoSavingId, setPhotoSavingId] = useState(null)
+  const fileInputRef = useRef(null)
+  const photoTargetRef = useRef(null)
 
   const isCoach = role === 'coach'
 
@@ -260,6 +266,57 @@ function Roster() {
     }
   }
 
+  // Opens the shared file input for one card; the change handler below picks
+  // the file up and PATCHes it onto the athlete that was clicked.
+  function openPhotoPicker(athleteId) {
+    if (photoSavingId) return
+    photoTargetRef.current = athleteId
+    fileInputRef.current?.click()
+  }
+
+  async function handlePhotoChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    const athleteId = photoTargetRef.current
+    photoTargetRef.current = null
+    if (!file || !athleteId) return
+
+    setPhotoSavingId(athleteId)
+    setError('')
+    try {
+      const photo = await fileToProfilePhoto(file)
+      await apiRequest(`/api/athletes/${athleteId}`, {
+        method: 'PATCH',
+        body: { photo },
+        getToken,
+      })
+      setAthletes((prev) => prev.map((a) => (a.id === athleteId ? { ...a, photo } : a)))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setPhotoSavingId(null)
+    }
+  }
+
+  async function handleRemovePhoto() {
+    if (!editingId) return
+    if (!window.confirm("Remove this athlete's profile photo?")) return
+    setPhotoSavingId(editingId)
+    setError('')
+    try {
+      await apiRequest(`/api/athletes/${editingId}`, {
+        method: 'PATCH',
+        body: { photo: null },
+        getToken,
+      })
+      setAthletes((prev) => prev.map((a) => (a.id === editingId ? { ...a, photo: null } : a)))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setPhotoSavingId(null)
+    }
+  }
+
   return (
     <Layout>
       <div className="roster-page">
@@ -369,6 +426,13 @@ function Roster() {
 
         {error && <div className="roster-error">{error}</div>}
 
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={handlePhotoChange}
+        />
         {formOpen && isCoach && (
           <form className="roster-form" onSubmit={handleSubmit}>
             <h3>{editingId ? 'Edit athlete' : 'Add athlete'}</h3>
@@ -456,6 +520,16 @@ function Roster() {
               <button type="button" className="btn btn-ghost" onClick={closeForm}>
                 Cancel
               </button>
+              {editingId && athletes.find((a) => a.id === editingId)?.photo && (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={handleRemovePhoto}
+                  disabled={photoSavingId === editingId}
+                >
+                  {photoSavingId === editingId ? 'Removing...' : 'Remove photo'}
+                </button>
+              )}
               <button type="submit" className="btn btn-gold" disabled={saving}>
                 {saving ? 'Saving...' : 'Save athlete'}
               </button>
@@ -506,7 +580,53 @@ function Roster() {
                   <Link to={`/roster/${athlete.id}`} className="ros-card-main">
                     <span className="ros-card-ghost" aria-hidden="true">{ghostNumber}</span>
                     <span className={`ros-card-pill ros-card-pill-${status}`}>{status}</span>
-                    <span className="ros-card-avatar">{initialsFor(athlete.name)}</span>
+                    <span className="ros-avatar-wrap">
+                      <span className={`ros-card-avatar${athlete.photo ? ' ros-card-avatar-photo' : ''}`}>
+                        {athlete.photo ? (
+                          <img className="ros-card-avatar-img" src={athlete.photo} alt="" />
+                        ) : (
+                          initialsFor(athlete.name)
+                        )}
+                      </span>
+                      {athlete.photo && (
+                        <span className="ros-card-avatar-shade" aria-hidden="true" />
+                      )}
+                      {isCoach && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className={`ros-photo-btn${photoSavingId === athlete.id ? ' ros-photo-btn-saving' : ''}`}
+                          aria-label={`${athlete.photo ? 'Replace' : 'Add'} photo for ${athlete.name}`}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            openPhotoPicker(athlete.id)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              openPhotoPicker(athlete.id)
+                            }
+                          }}
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                            <circle cx="12" cy="13" r="4" />
+                          </svg>
+                        </span>
+                      )}
+                    </span>
                     <div className="ros-card-body">
                       <div className="ros-card-toprow">
                         <h3 className="ros-card-name">{athlete.name}</h3>

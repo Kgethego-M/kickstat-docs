@@ -158,6 +158,25 @@ router.patch('/:id', requireAuth(), async (req, res) => {
       return res.status(400).json({ error: 'Invalid email address' });
     }
 
+    // Profile photos arrive as data URLs (downscaled in the browser before
+    // upload — see frontend/src/lib/image.js). An explicit null clears the
+    // photo, which the COALESCE-only pattern used by the other fields cannot
+    // express, so photo is applied via a CASE on the has-update flag.
+    const hasPhotoUpdate = Object.prototype.hasOwnProperty.call(req.body, 'photo');
+    let photo = null;
+    if (hasPhotoUpdate && req.body.photo != null) {
+      photo = req.body.photo;
+      if (
+        typeof photo !== 'string' ||
+        !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(photo)
+      ) {
+        return res.status(400).json({ error: 'Photo must be a JPEG, PNG or WebP image' });
+      }
+      if (photo.length > 400000) {
+        return res.status(400).json({ error: 'Photo is too large' });
+      }
+    }
+
     const result = await pool.query(
       `UPDATE athletes
        SET name = COALESCE($1, name),
@@ -167,9 +186,10 @@ router.patch('/:id', requireAuth(), async (req, res) => {
            contact_info = COALESCE($5, contact_info),
            email = COALESCE($6, email),
            is_managed = COALESCE($7, is_managed),
+           photo = CASE WHEN $9::boolean THEN $10 ELSE photo END,
            updated_at = now()
        WHERE id = $8 RETURNING *`,
-      [name, position, squad_number, date_of_birth, contact_info, email || null, typeof is_managed === 'boolean' ? is_managed : null, req.params.id]
+      [name, position, squad_number, date_of_birth, contact_info, email || null, typeof is_managed === 'boolean' ? is_managed : null, req.params.id, hasPhotoUpdate, photo]
     );
 
     res.json(result.rows[0]);

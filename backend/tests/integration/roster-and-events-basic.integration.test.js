@@ -130,6 +130,52 @@ describe('US4 — edit or remove an athlete', () => {
     const stillThere = await pool.query('SELECT id FROM athletes WHERE id = $1', [athleteId])
     expect(stillThere.rows).toHaveLength(0)
   })
+
+  test('AC: the owning coach can attach a profile photo and it is returned by the roster list', async () => {
+    const photo = 'data:image/jpeg;base64,ZmFrZQ=='
+
+    const res = await request(app)
+      .patch(`/api/athletes/${athleteId}`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({ photo })
+
+    expect(res.status).toBe(200)
+    expect(res.body.photo).toBe(photo)
+
+    const listRes = await request(app)
+      .get('/api/athletes')
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+
+    expect(listRes.status).toBe(200)
+    expect(listRes.body[0].photo).toBe(photo)
+  })
+
+  test('rejects a photo that is not a base64 image data URL', async () => {
+    const res = await request(app)
+      .patch(`/api/athletes/${athleteId}`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({ photo: 'https://example.com/face.jpg' })
+
+    expect(res.status).toBe(400)
+
+    const stored = await pool.query('SELECT photo FROM athletes WHERE id = $1', [athleteId])
+    expect(stored.rows[0].photo).toBeNull()
+  })
+
+  test('an explicit null clears the stored photo', async () => {
+    await pool.query(
+      "UPDATE athletes SET photo = 'data:image/jpeg;base64,ZmFrZQ==' WHERE id = $1",
+      [athleteId]
+    )
+
+    const res = await request(app)
+      .patch(`/api/athletes/${athleteId}`)
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+      .send({ photo: null })
+
+    expect(res.status).toBe(200)
+    expect(res.body.photo).toBeNull()
+  })
 })
 
 describe('US5 — create a match or training event', () => {

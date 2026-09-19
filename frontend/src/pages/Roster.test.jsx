@@ -7,10 +7,15 @@ import Roster from './Roster'
 const mocks = vi.hoisted(() => ({
   apiRequest: vi.fn(),
   getToken: vi.fn(),
+  fileToProfilePhoto: vi.fn(),
 }))
 
 vi.mock('../lib/api', () => ({
   apiRequest: mocks.apiRequest,
+}))
+
+vi.mock('../lib/image', () => ({
+  fileToProfilePhoto: mocks.fileToProfilePhoto,
 }))
 
 vi.mock('@clerk/clerk-react', () => ({
@@ -28,6 +33,7 @@ function renderWithRouter(ui) {
 describe('Roster', () => {
   beforeEach(() => {
     mocks.apiRequest.mockReset()
+    mocks.fileToProfilePhoto.mockReset()
     mocks.getToken.mockResolvedValue('test-token')
   })
 
@@ -110,6 +116,7 @@ describe('Roster', () => {
     expect(screen.queryByRole('button', { name: /Add athlete/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Edit/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Remove/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /photo for/i })).not.toBeInTheDocument()
   })
 
   it('deletes an athlete after confirming', async () => {
@@ -146,5 +153,80 @@ describe('Roster', () => {
         getToken: mocks.getToken,
       })
     })
+  })
+
+  it('shows the stored photo on the card instead of the initials', async () => {
+    mocks.apiRequest.mockImplementation((path) => {
+      if (path === '/api/account/me') return Promise.resolve({ role: 'coach' })
+      if (path === '/api/athletes') {
+        return Promise.resolve([
+          {
+            id: 1,
+            name: 'Alex Morgan',
+            position: 'Forward',
+            squad_number: 13,
+            photo: 'data:image/jpeg;base64,ZmFrZQ==',
+          },
+        ])
+      }
+      return Promise.resolve({})
+    })
+
+    const { container } = renderWithRouter(<Roster />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Alex Morgan' })).toBeInTheDocument()
+    })
+
+    expect(container.querySelector('.ros-card-avatar-img')).toHaveAttribute(
+      'src',
+      'data:image/jpeg;base64,ZmFrZQ=='
+    )
+    expect(screen.queryByText('AM')).not.toBeInTheDocument()
+  })
+
+  it('lets a coach attach a photo from the card and swaps the initials for it', async () => {
+    mocks.fileToProfilePhoto.mockResolvedValue('data:image/jpeg;base64,UElD')
+
+    mocks.apiRequest.mockImplementation((path) => {
+      if (path === '/api/account/me') return Promise.resolve({ role: 'coach' })
+      if (path === '/api/athletes') {
+        return Promise.resolve([
+          { id: 1, name: 'Alex Morgan', position: 'Forward', squad_number: 13 },
+        ])
+      }
+      if (path === '/api/athletes/1') {
+        return Promise.resolve({ id: 1, photo: 'data:image/jpeg;base64,UElD' })
+      }
+      return Promise.resolve({})
+    })
+
+    const { container } = renderWithRouter(<Roster />)
+
+    await waitFor(() => {
+      expect(screen.getByText('AM')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add photo for Alex Morgan' }))
+
+    const fileInput = container.querySelector('input[type="file"]')
+    const file = new File(['face'], 'face.jpg', { type: 'image/jpeg' })
+    fireEvent.change(fileInput, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(mocks.apiRequest).toHaveBeenCalledWith('/api/athletes/1', {
+        method: 'PATCH',
+        body: { photo: 'data:image/jpeg;base64,UElD' },
+        getToken: mocks.getToken,
+      })
+    })
+
+    await waitFor(() => {
+      expect(container.querySelector('.ros-card-avatar-img')).toHaveAttribute(
+        'src',
+        'data:image/jpeg;base64,UElD'
+      )
+    })
+    expect(screen.queryByText('AM')).not.toBeInTheDocument()
   })
 })
