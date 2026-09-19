@@ -33,7 +33,9 @@ app.use(cors({
   ].filter(Boolean),
   credentials: true,
 }));
-app.use(express.json());
+// Raised from the 100kb default so profile-photo data URLs (already
+// downscaled in the browser) fit without hitting a 413.
+app.use(express.json({ limit: '1mb' }));
 app.use('/api/dashboard', dashboardRouter);
 app.use(clerkMiddleware());
 

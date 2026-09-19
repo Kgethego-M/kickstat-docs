@@ -272,13 +272,20 @@
   color: var(--color-pitch);
 }
 
+/* Wrapper keeps the avatar's footprint identical whether initials or a
+   photo is shown (the photo button and vignette hang off it). */
+.ros-avatar-wrap {
+  position: relative;
+  width: 88px;
+  margin: 34px auto 26px;
+}
+
 .ros-card-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 88px;
   height: 88px;
-  margin: 34px auto 26px;
   border-radius: 50%;
   background: var(--color-blue);
   color: var(--color-pitch);
@@ -286,6 +293,73 @@
   font-size: 28px;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+.ros-card-avatar-photo {
+  overflow: hidden;
+}
+
+.ros-card-avatar-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Vignette over the player photo. Strictly inside the avatar circle, so the
+   ghost squad number and the status pill in the card's corners stay visible
+   and unmoved. */
+.ros-card-avatar-shade {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at 50% 36%,
+      rgba(var(--color-ink-rgb), 0) 40%,
+      rgba(var(--color-ink-rgb), 0.32) 74%,
+      rgba(var(--color-ink-rgb), 0.6) 100%
+    ),
+    linear-gradient(to top, rgba(var(--color-ink-rgb), 0.45), rgba(var(--color-ink-rgb), 0) 42%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.7),
+    inset 0 0 0 3px rgba(var(--color-ink-rgb), 0.22);
+}
+
+.ros-photo-btn {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--color-lime);
+  color: var(--color-ink-fixed);
+  border: 2px solid var(--color-pitch);
+  box-shadow: 0 2px 8px rgba(var(--color-ink-rgb), 0.28);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.ros-photo-btn:hover {
+  background: var(--color-blue);
+  color: var(--color-pitch);
+  transform: scale(1.06);
+}
+
+.ros-photo-btn:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+.ros-photo-btn-saving {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .ros-card-body {
