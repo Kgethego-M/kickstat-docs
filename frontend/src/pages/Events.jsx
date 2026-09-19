@@ -321,7 +321,29 @@ function Events() {
     })
   }
 
+  // Row title: "Squad — Opponent" for matches once the squad name is known;
+  // falls back to the stored title otherwise (leagues keep their own name).
+  function eventDisplayTitle(event) {
+    if (event.format === 'league' || event.format === 'tournament') {
+      return event.title || 'League'
+    }
+    if (event.opponent && squad?.name) return `${squad.name} — ${event.opponent}`
+    return event.title || event.opponent || 'Training session'
+  }
+
+  function eventDateParts(event) {
+    if (!event.event_date) return { day: 'TBC', time: '' }
+    const d = new Date(event.event_date)
+    return {
+      day: `${d.getDate()} ${d.toLocaleDateString(undefined, { month: 'short' }).toUpperCase()}`,
+      time: d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }),
+    }
+  }
+
   const monthLabel = calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+
+  // Hero strip shows the CURRENT month, independent of the calendar's navigable month.
+  const heroMonthLabel = new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 
   // Earliest selectable kickoff is "now" — mirroring the backend's
   // "cannot schedule an event in the past" validation.
@@ -333,37 +355,27 @@ function Events() {
 
   return (
     <Layout>
-      <div className="roster-header">
-        <div>
-          <span className="dashboard-eyebrow">Matchday</span>
-          <h1>Events</h1>
+      <div className="events-page">
+      <header className="evt-head">
+        <div className="evt-head-text">
+          <span className="evt-eyebrow">Schedule and fixtures</span>
+          <h1 className="evt-title-main">Events</h1>
         </div>
-        {activeTab === 'mine' && (
-          <div className="roster-header-actions">
-            <div className="view-toggle" role="tablist" aria-label="Events view">
-              <button
-                type="button"
-                className={`view-toggle-btn${viewMode === 'list' ? ' view-toggle-btn-active' : ''}`}
-                onClick={() => setViewMode('list')}
-                aria-pressed={viewMode === 'list'}
-              >
-                List
-              </button>
-              <button
-                type="button"
-                className={`view-toggle-btn${viewMode === 'calendar' ? ' view-toggle-btn-active' : ''}`}
-                onClick={() => setViewMode('calendar')}
-                aria-pressed={viewMode === 'calendar'}
-              >
-                Calendar
-              </button>
-            </div>
-            <button className="btn btn-gold" onClick={openForm}>
-              Schedule event
-            </button>
-          </div>
-        )}
-      </div>
+        <button type="button" className="evt-schedule-btn" onClick={openForm}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" focusable="false">
+            <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          Schedule event
+        </button>
+      </header>
+
+      <section className="evt-hero">
+        <span className="evt-hero-label">{heroMonthLabel}</span>
+        <h2 className="evt-hero-title">Control the week ahead</h2>
+        <p className="evt-hero-sub">
+          Training, preparation and league fixtures stay in one operational calendar.
+        </p>
+      </section>
 
       {activeTab === 'mine' && rosterBelowMinimum && (
         <div className="roster-error">
@@ -373,22 +385,55 @@ function Events() {
         </div>
       )}
 
-      {/* Tab bar */}
-      <div className="events-tabs">
-        <button
-          type="button"
-          className={`events-tab${activeTab === 'mine' ? ' events-tab-active' : ''}`}
-          onClick={() => setActiveTab('mine')}
-        >
-          My Events
-        </button>
-        <button
-          type="button"
-          className={`events-tab${activeTab === 'pro' ? ' events-tab-active' : ''}`}
-          onClick={() => setActiveTab('pro')}
-        >
-          Pro Fixtures
-        </button>
+      {/* Tab bar + list/calendar toggle */}
+      <div className="evt-toolbar">
+        <div className="events-tabs" aria-label="Events tabs">
+          <button
+            type="button"
+            aria-pressed={activeTab === 'mine'}
+            className={`events-tab${activeTab === 'mine' ? ' events-tab-active' : ''}`}
+            onClick={() => setActiveTab('mine')}
+          >
+            My Events
+          </button>
+          <button
+            type="button"
+            aria-pressed={activeTab === 'pro'}
+            className={`events-tab${activeTab === 'pro' ? ' events-tab-active' : ''}`}
+            onClick={() => setActiveTab('pro')}
+          >
+            Pro Fixtures
+          </button>
+        </div>
+        {activeTab === 'mine' && (
+          <div className="view-toggle" role="tablist" aria-label="Events view">
+            <button
+              type="button"
+              className={`view-toggle-btn${viewMode === 'list' ? ' view-toggle-btn-active' : ''}`}
+              onClick={() => setViewMode('list')}
+              aria-pressed={viewMode === 'list'}
+              aria-label="List view"
+              title="List view"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+                <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className={`view-toggle-btn${viewMode === 'calendar' ? ' view-toggle-btn-active' : ''}`}
+              onClick={() => setViewMode('calendar')}
+              aria-pressed={viewMode === 'calendar'}
+              aria-label="Calendar view"
+              title="Calendar view"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+                <rect x="1.5" y="2.5" width="13" height="12" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M1.5 6h13M5 1v3M11 1v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
 
       {activeTab === 'mine' && error && <div className="roster-error">{error}</div>}
@@ -513,39 +558,67 @@ function Events() {
             <p>No events yet. Schedule your first match or training session.</p>
           </div>
         ) : viewMode === 'list' ? (
-          <div className="events-grid">
-            {events.map((event) => (
-              <div key={event.id} className={`event-card event-card-${event.status}`}>
-                <button
-                  type="button"
-                  className="event-card-main"
-                  onClick={() => navigateToEvent(event)}
-                >
-                  <span className={`event-status event-status-${event.status}`}>
-                    {statusLabel[event.status] || event.status}
-                  </span>
-                  <span className="event-card-format">{formatLabel[event.format] || event.format}</span>
-                  <h3 className="event-card-title">{event.title || event.opponent || 'Training session'}</h3>
-                  <span className="event-card-date">
-                    {event.format === 'league' || event.format === 'tournament'
-                      ? `${event.team_count || 0} / ${event.required_teams || '?'} teams joined`
-                      : new Date(event.event_date).toLocaleString()}
-                  </span>
-                  {event.location && <span className="event-card-location">{event.location}</span>}
-                </button>
-                {event.status === 'open' && event.team_count < event.required_teams && (
+          <div className="events-rows">
+            {events.map((event) => {
+              const dateParts = eventDateParts(event)
+              const isLeagueEvent = event.format === 'league' || event.format === 'tournament'
+              return (
+                <div key={event.id} className={`evt-row evt-row-${event.status}`}>
                   <button
                     type="button"
-                    className="btn btn-gold btn-join"
-                    onClick={() => handleJoin(event.id)}
-                    disabled={rosterBelowMinimum}
-                    title={rosterBelowMinimum ? `Needs at least ${squad?.min_roster_size} athletes on the roster` : undefined}
+                    className="evt-row-main"
+                    onClick={() => navigateToEvent(event)}
                   >
-                    Join
+                    <span className="evt-date">
+                      <span className="evt-date-day">{dateParts.day}</span>
+                      {dateParts.time && <span className="evt-date-time">{dateParts.time}</span>}
+                    </span>
+                    <span className="evt-info">
+                      <span className="evt-tags">
+                        <span className="evt-tag">{formatLabel[event.format] || event.format}</span>
+                        <span className={`event-status event-status-${event.status}`}>
+                          {statusLabel[event.status] || event.status}
+                        </span>
+                      </span>
+                      <h3 className="evt-name">{eventDisplayTitle(event)}</h3>
+                      <span className="evt-meta">
+                        {isLeagueEvent ? (
+                          <span>{`${event.team_count || 0} / ${event.required_teams || '?'} teams joined`}</span>
+                        ) : event.location ? (
+                          <span className="evt-loc">
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" focusable="false">
+                              <path d="M6 10.5S2.5 7.6 2.5 5a3.5 3.5 0 1 1 7 0c0 2.6-3.5 5.5-3.5 5.5Z" stroke="currentColor" strokeWidth="1.2" />
+                              <circle cx="6" cy="5" r="1.2" stroke="currentColor" strokeWidth="1.2" />
+                            </svg>
+                            {event.location}
+                          </span>
+                        ) : null}
+                      </span>
+                    </span>
                   </button>
-                )}
-              </div>
-            ))}
+                  <div className="evt-actions">
+                    {event.status === 'open' && event.team_count < event.required_teams && (
+                      <button
+                        type="button"
+                        className="btn btn-gold btn-join"
+                        onClick={() => handleJoin(event.id)}
+                        disabled={rosterBelowMinimum}
+                        title={rosterBelowMinimum ? `Needs at least ${squad?.min_roster_size} athletes on the roster` : undefined}
+                      >
+                        Join
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => navigateToEvent(event)}
+                    >
+                      Details
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         ) : (
           <div className="calendar-wrap">
@@ -731,6 +804,7 @@ function Events() {
           )}
         </div>
       )}
+      </div>
     </Layout>
   )
 }

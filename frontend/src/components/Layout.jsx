@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import ThemeToggle from './ThemeToggle'
 import { UserButton } from '@clerk/clerk-react'
 import './Layout.css'
 
@@ -18,7 +19,7 @@ function Layout({ children }) {
     <div className="app-shell">
       <aside className="app-sidebar">
         <div className="app-crest">
-          <span className="app-crest-mark">KS</span>
+          <img src="/logo-crest-reversed.svg" alt="" className="app-crest-mark" />
           <span className="app-crest-name">KickStat</span>
         </div>
         <nav className="app-nav">
@@ -29,6 +30,7 @@ function Layout({ children }) {
           {navItem('/settings', 'Settings')}
         </nav>
         <div className="app-sidebar-footer">
+          <ThemeToggle />
           <UserButton />
         </div>
       </aside>
