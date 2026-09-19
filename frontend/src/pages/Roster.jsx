@@ -14,6 +14,10 @@ const emptyForm = {
   date_of_birth: '',
   contact_info: '',
   email: '',
+  height_cm: '',
+  weight_kg: '',
+  tactical_tags: '',
+  coach_notes: '',
 }
 
 const STATUS_FILTERS = [
@@ -170,6 +174,10 @@ function Roster() {
       date_of_birth: athlete.date_of_birth ? athlete.date_of_birth.slice(0, 10) : '',
       contact_info: athlete.contact_info || '',
       email: athlete.email || '',
+      height_cm: athlete.height_cm ?? '',
+      weight_kg: athlete.weight_kg ?? '',
+      tactical_tags: athlete.tactical_tags || '',
+      coach_notes: athlete.coach_notes || '',
     })
     setEditingId(athlete.id)
     setJustAdded(null)
@@ -222,6 +230,10 @@ function Roster() {
       date_of_birth: form.date_of_birth || null,
       contact_info: form.contact_info.trim() || null,
       email: form.email.trim() || null,
+      height_cm: form.height_cm ? Number(form.height_cm) : null,
+      weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
+      tactical_tags: form.tactical_tags.trim() || null,
+      coach_notes: form.coach_notes.trim() || null,
     }
 
     try {
@@ -493,6 +505,46 @@ function Roster() {
                   type="date"
                   value={form.date_of_birth}
                   onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
+                />
+              </label>
+              <label>
+                Height (cm)
+                <input
+                  type="number"
+                  min="50"
+                  max="300"
+                  value={form.height_cm}
+                  onChange={(e) => setForm({ ...form, height_cm: e.target.value })}
+                  placeholder="e.g. 180"
+                />
+              </label>
+              <label>
+                Weight (kg)
+                <input
+                  type="number"
+                  min="10"
+                  max="300"
+                  value={form.weight_kg}
+                  onChange={(e) => setForm({ ...form, weight_kg: e.target.value })}
+                  placeholder="e.g. 75"
+                />
+              </label>
+              <label className="roster-form-wide">
+                Tactical tags (comma-separated)
+                <input
+                  type="text"
+                  value={form.tactical_tags}
+                  onChange={(e) => setForm({ ...form, tactical_tags: e.target.value })}
+                  placeholder="e.g. strong header, fast winger, good under pressure"
+                />
+              </label>
+              <label className="roster-form-wide">
+                Coach notes
+                <textarea
+                  value={form.coach_notes}
+                  onChange={(e) => setForm({ ...form, coach_notes: e.target.value })}
+                  placeholder="e.g. Needs work on weak foot. Excellent leadership qualities."
+                  rows="3"
                 />
               </label>
               <label className="roster-form-wide">

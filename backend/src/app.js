@@ -16,6 +16,7 @@ const externalRouter = require('./routes/external');
 const accountRouter = require('./routes/account');
 const weatherRouter = require('./routes/weather');
 const injuriesRouter = require('./routes/injuries');
+const compareRouter = require('./routes/compare');
 const { sendEventReminders } = require('./lib/reminders');
 
 const app = express();
@@ -55,6 +56,7 @@ app.use('/api/external', externalRouter);
 app.use('/api/account', accountRouter);
 app.use('/api/weather', weatherRouter);
 app.use('/api/injuries', injuriesRouter);
+app.use('/api/compare', compareRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
