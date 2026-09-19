@@ -273,8 +273,11 @@
 }
 
 /* Wrapper keeps the avatar's footprint identical whether initials or a
-   photo is shown (the photo button and vignette hang off it). */
+   photo is shown. display: block is required for the auto margins to centre
+   it — as a plain inline span it collapses to zero width and drags the
+   avatar left over the card's ghost number. */
 .ros-avatar-wrap {
+  display: block;
   position: relative;
   width: 88px;
   margin: 34px auto 26px;
@@ -304,27 +307,6 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-/* Vignette over the player photo. Strictly inside the avatar circle, so the
-   ghost squad number and the status pill in the card's corners stay visible
-   and unmoved. */
-.ros-card-avatar-shade {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  pointer-events: none;
-  background:
-    radial-gradient(
-      circle at 50% 36%,
-      rgba(var(--color-ink-rgb), 0) 40%,
-      rgba(var(--color-ink-rgb), 0.32) 74%,
-      rgba(var(--color-ink-rgb), 0.6) 100%
-    ),
-    linear-gradient(to top, rgba(var(--color-ink-rgb), 0.45), rgba(var(--color-ink-rgb), 0) 42%);
-  box-shadow:
-    inset 0 0 0 2px rgba(255, 255, 255, 0.7),
-    inset 0 0 0 3px rgba(var(--color-ink-rgb), 0.22);
 }
 
 .ros-photo-btn {

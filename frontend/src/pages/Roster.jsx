@@ -588,9 +588,6 @@ function Roster() {
                           initialsFor(athlete.name)
                         )}
                       </span>
-                      {athlete.photo && (
-                        <span className="ros-card-avatar-shade" aria-hidden="true" />
-                      )}
                       {isCoach && (
                         <span
                           role="button"
