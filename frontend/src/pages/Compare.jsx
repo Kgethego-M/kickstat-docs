@@ -5,6 +5,23 @@ import Layout from '../components/Layout'
 import { apiRequest } from '../lib/api'
 import './Compare.css'
 
+function StatBox({ label, valueA, valueB, accent = false }) {
+  const a = valueA ?? 0
+  const b = valueB ?? 0
+  const leader = a > b ? 'A' : b > a ? 'B' : null
+
+  return (
+    <div className={`cmp-stat${accent ? ' cmp-stat-accent' : ''}`}>
+      <span className="cmp-stat-label">{label}</span>
+      <div className="cmp-stat-values">
+        <span className={`cmp-stat-value${leader === 'A' ? ' cmp-stat-leader' : ''}`}>{a}</span>
+        <span className="cmp-stat-vs">vs</span>
+        <span className={`cmp-stat-value${leader === 'B' ? ' cmp-stat-leader' : ''}`}>{b}</span>
+      </div>
+    </div>
+  )
+}
+
 function Compare() {
   const { getToken } = useAuth()
   const [athletes, setAthletes] = useState([])
@@ -48,23 +65,6 @@ function Compare() {
     } finally {
       setLoading(false)
     }
-  }
-
-  function StatBox({ label, valueA, valueB, accent = false }) {
-    const a = valueA ?? 0
-    const b = valueB ?? 0
-    const leader = a > b ? 'A' : b > a ? 'B' : null
-
-    return (
-      <div className={`cmp-stat${accent ? ' cmp-stat-accent' : ''}`}>
-        <span className="cmp-stat-label">{label}</span>
-        <div className="cmp-stat-values">
-          <span className={`cmp-stat-value${leader === 'A' ? ' cmp-stat-leader' : ''}`}>{a}</span>
-          <span className="cmp-stat-vs">vs</span>
-          <span className={`cmp-stat-value${leader === 'B' ? ' cmp-stat-leader' : ''}`}>{b}</span>
-        </div>
-      </div>
-    )
   }
 
   return (
