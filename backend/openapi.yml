@@ -216,6 +216,77 @@ paths:
         '200':
           description: Log entry soft-deleted
 
+  /api/events/{id}/simulate:
+    post:
+      summary: Simulate a match event (Quick Sim / Simulate Match)
+      description: >
+        Resolves an EA FC-style overall for every player in the saved lineups
+        (starters and bench) and returns a full 90-minute script weighted by
+        those ratings. Nothing is written here: the client replays the returned
+        events through POST /api/events/{id}/logs, so a simulated match is
+        recorded exactly like a manually logged one. `mode` only tells the
+        client how to pace that replay.
+      tags: [Simulation]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode: { type: string, enum: [quick, timed], default: quick, description: "quick applies every event at once; timed spreads the 90 minutes over two real minutes" }
+      responses:
+        '200':
+          description: Script, resolved ratings and match summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode: { type: string, enum: [quick, timed] }
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        minute: { type: integer }
+                        team_side: { type: string, enum: [home, away] }
+                        action_type: { type: string, enum: [goal, shot_on_target, save, yellow_card, red_card, substitution, penalty] }
+                        is_scoring: { type: boolean }
+                        athlete_id: { type: integer, nullable: true }
+                        assist_athlete_id: { type: integer, nullable: true }
+                        substitute_athlete_id: { type: integer, nullable: true }
+                  ratings:
+                    type: object
+                    description: Keyed by athlete id
+                    additionalProperties:
+                      type: object
+                      properties:
+                        overall: { type: integer }
+                        position: { type: string, nullable: true }
+                        source: { type: string, enum: [dataset, estimated] }
+                  summary:
+                    type: object
+                    properties:
+                      homeStrength: { type: number }
+                      awayStrength: { type: number }
+                      homeExpectedGoals: { type: number }
+                      awayExpectedGoals: { type: number }
+                      homeGoals: { type: integer }
+                      awayGoals: { type: integer }
+                      eventCount: { type: integer }
+        '400':
+          description: No saved lineup, cancelled or finished match, or a league/tournament event (use the fixture endpoints)
+        '403':
+          description: Only the host squad can simulate this event
+
   /api/fixtures/{id}:
     get:
       summary: Fixture detail with timeline
@@ -247,6 +318,38 @@ paths:
           description: Log entry created
         '400':
           description: Fixture is cancelled
+
+  /api/fixtures/{id}/simulate:
+    post:
+      summary: Simulate a fixture (Quick Sim / Simulate Match)
+      description: >
+        Fixture equivalent of POST /api/events/{id}/simulate — builds a ratings
+        weighted 90-minute script from both teams' saved lineups and returns it
+        for the client to replay through POST /api/fixtures/{id}/logs. Only the
+        home squad may simulate.
+      tags: [Simulation]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode: { type: string, enum: [quick, timed], default: quick }
+      responses:
+        '200':
+          description: Script, resolved ratings and match summary (same shape as the event endpoint)
+        '400':
+          description: No lineups saved, cancelled or finished fixture, or a team without a starting XI
+        '403':
+          description: Only the home team can simulate this fixture
 
   /api/injuries:
     post:

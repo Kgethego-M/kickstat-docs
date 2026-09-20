@@ -116,10 +116,19 @@ erDiagram
     varchar role "assistant or athlete"
     integer athlete_id FK "only for role=athlete"
   }
+  PLAYER_RATINGS {
+    serial id PK
+    varchar name_normalized UK "accent-stripped, lowercased cache key"
+    varchar display_name "roster spelling that was looked up"
+    smallint overall "1-99, EA FC style"
+    varchar position
+    varchar source "dataset or estimated"
+    timestamp checked_at "when the rating was last verified"
+  }
 ```
 
-Two relationships worth calling out since they're easy to misread from
-the diagram alone:
+Details worth calling out since they're easy to misread from the diagram
+alone:
 
 - **`SQUADS ||--o{ FIXTURES`** appears twice (home and away) — a fixture
   always references two different squads, both via the same
@@ -130,6 +139,12 @@ the diagram alone:
   roster row (so accepting it attaches login access to that athlete's
   existing stats history) rather than creating a disconnected account.
   Assistant invites don't use this field at all.
+- **`PLAYER_RATINGS` has no relationship arrows at all** — it is a lookup
+  cache keyed by a normalised player name, not by `athletes.id`, because one
+  lookup serves every squad that ever fields that player and the row must
+  outlive any single athlete record. See
+  [the ratings dataset page](../third-party/player-ratings.md) for the caching
+  and fallback rules.
 
 ---
 ## Design rationale
@@ -159,6 +174,7 @@ PostgreSQL was chosen over alternatives (MongoDB, SQLite) because:
 | `fixtures` are separate from `events` | A league event contains many fixtures. Keeping them in separate tables allows each fixture to have its own log, status, and date. |
 | `injuries.return_date` is an estimate, not a verdict | The estimator derives a range from sports-medicine reference tables and stores the midpoint with its basis (`estimation_basis`). Coaches can override it (US30) — the stored value is always what the coach last confirmed. |
 | `injuries.cleared_at` for early clearance | Recovery often beats the estimate. Setting `cleared_at` keeps the injury history for the athlete's record while dropping the active-injury flag. |
+| `player_ratings` is keyed by a normalised name, not `athletes.id` | Ratings come from an external dataset keyed by player name, and one lookup serves every squad. Caching by name means the external API is only ever asked for a name it has not answered before, and renaming an athlete does not throw the rating away. |
 
 ## Tables
 
@@ -259,6 +275,24 @@ Roster availability tracking (US29–US31). One row per logged injury.
 | `status` | varchar(20), not null, default `'pending'` | `'pending'` or `'accepted'` |
 | `created_at` | timestamp | |
 
+### `player_ratings`
+
+Cache of EA FC-style player ratings used by the match simulator. Keyed by a
+normalised player name, so one lookup serves every squad — see
+[the ratings dataset page](../third-party/player-ratings.md) for the lookup,
+caching and fallback rules. This table has **no foreign keys**.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | serial, PK | |
+| `name_normalized` | varchar(160), not null, unique | Cache key: accents stripped, lowercased, punctuation collapsed |
+| `display_name` | varchar(160) | The roster spelling that was looked up |
+| `overall` | smallint, not null | CHECK `BETWEEN 1 AND 99` |
+| `position` | varchar(40) | Position from the dataset or the athlete's roster position |
+| `source` | varchar(16), not null, default `'estimated'` | CHECK `'dataset'` or `'estimated'` — dataset hits are kept forever, estimates are re-checked after 30 days |
+| `checked_at` | timestamp, not null, default `now()` | When the rating was last confirmed with the external dataset |
+| `created_at` / `updated_at` | timestamp, not null, default `now()` | |
+
 ## Foreign key summary
 
 ```
@@ -273,6 +307,10 @@ users ──┐
         └──(created_by / logged_by / invited_by, on events/log_entries/invites)
                                                         athletes ──(athlete_id, ON DELETE SET NULL)┘
 ```
+
+`player_ratings` is intentionally absent from this diagram — it references no
+other table, because a rating belongs to a player *name* rather than to one
+squad's roster row.
 
 ## Statistics are derived, not stored
 

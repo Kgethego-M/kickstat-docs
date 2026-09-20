@@ -42,6 +42,8 @@ The integration suite covers the main backend workflows, including:
 - league fixtures, standings, and top-scorer aggregation;
 - injury logging, return-to-play estimates, coach overrides, and roster flags (US29–US31);
 - cancelled event and fixture logging being rejected (US6);
+- ratings-driven match simulation: dataset lookup, caching, positional estimates,
+  and the script both simulation endpoints return;
 - event reminder email scheduling;
 - external football-data API response normalisation and error handling; and
 - venue weather lookup behaviour.
@@ -69,6 +71,7 @@ backend/tests/integration/
 | `injuries.integration.test.js` | Injury logging, estimates, overrides, and roster flags (US29–US31) |
 | `reminders.integration.test.js` | Event reminder email scheduling |
 | `roster-and-events-basic.integration.test.js` | Roster and basic event management |
+| `simulation.integration.test.js` | Player ratings lookup and the match simulation endpoints |
 | `squad.integration.test.js` | Squad and user self-healing helpers |
 | `weather.integration.test.js` | Weather integration |
 
@@ -120,6 +123,14 @@ Frontend component tests live next to the components they test:
 
 ```text
 frontend/src/**/__tests__/ and *.test.jsx files
+```
+
+The simulation feature is covered on the frontend too:
+`frontend/src/lib/simulation.test.js` covers mapping the script onto log bodies
+and the two-minute pacing of a timed replay, and the `LiveMatch simulation`
+tests in `frontend/src/pages/LiveMatch.test.jsx` cover Quick Sim, stopping a
+timed run part way through, and the gate that offers the buttons only once a
+starting XI is set.
 
 ## View coverage locally
 
