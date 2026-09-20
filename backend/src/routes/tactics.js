@@ -62,7 +62,7 @@ router.post('/', requireAuth(), async (req, res) => {
     res.status(201).json(result.rows[0])
   } catch (err) {
     console.error('POST /api/tactics error:', err)
-    res.status(500).json({ error: 'Failed to create tactic' })
+    res.status(500).json({ error: 'Failed to create tactic', detail: err.message, code: err.code })
   }
 })
 
