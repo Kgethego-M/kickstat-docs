@@ -13,97 +13,100 @@ import EventDetail from './pages/EventDetail'
 import Live from './pages/Live'
 import LiveMatch from './pages/LiveMatch'
 import OnboardingGuard from './components/OnboardingGuard'
+import ConfirmProvider from './components/ConfirmProvider'
 import './App.css'
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Welcome />} />
-      <Route
-        path="/dashboard"
-        element={
-          <OnboardingGuard>
-            <Dashboard />
-          </OnboardingGuard>
-        }
-      />
-      <Route path="/welcome" element={<Welcome />} />  
-      <Route path="/sign-in/*" element={<SignInPage />} />
-      <Route path="/sign-up/*" element={<SignUpPage />} />
-      <Route
-        path="/setup"
-        element={
-          <OnboardingGuard>
-            <Setup />
-          </OnboardingGuard>
-        }
-      />
-      <Route
-        path="/roster"
-        element={
-          <OnboardingGuard>
-            <Roster />
-          </OnboardingGuard>
-        }
-      />
-      <Route
-        path="/roster/:id"
-        element={
-          <OnboardingGuard>
-            <AthleteStats />
-          </OnboardingGuard>
-        }
-      />
-      <Route
-        path="/events"
-        element={
-          <OnboardingGuard>
-            <Events />
-          </OnboardingGuard>
-        }
-      />
-      <Route
-        path="/events/:id"
-        element={
-          <OnboardingGuard>
-            <EventDetail />
-          </OnboardingGuard>
-        }
-      />
-      <Route
-        path="/live"
-        element={
-          <OnboardingGuard>
-            <Live />
-          </OnboardingGuard>
-        }
-      />
-      <Route
-        path="/live/:id"
-        element={
-          <OnboardingGuard>
-            <LiveMatch />
-          </OnboardingGuard>
-        }
-      />
-      <Route
-        path="/live/fixture/:fixtureId"
-        element={
-          <OnboardingGuard>
-            <LiveMatch />
-          </OnboardingGuard>
-        }
-      />
-      <Route
-        path="/settings"
-        element={
-          <OnboardingGuard>
-            <AccountSettings />
-          </OnboardingGuard>
-        }
-      />
-      <Route path="/invite/:token" element={<InviteAccept />} />
-    </Routes>
+    <ConfirmProvider>
+      <Routes>
+        <Route path="/" element={<Welcome />} />
+        <Route
+          path="/dashboard"
+          element={
+            <OnboardingGuard>
+              <Dashboard />
+            </OnboardingGuard>
+          }
+        />
+        <Route path="/welcome" element={<Welcome />} />  
+        <Route path="/sign-in/*" element={<SignInPage />} />
+        <Route path="/sign-up/*" element={<SignUpPage />} />
+        <Route
+          path="/setup"
+          element={
+            <OnboardingGuard>
+              <Setup />
+            </OnboardingGuard>
+          }
+        />
+        <Route
+          path="/roster"
+          element={
+            <OnboardingGuard>
+              <Roster />
+            </OnboardingGuard>
+          }
+        />
+        <Route
+          path="/roster/:id"
+          element={
+            <OnboardingGuard>
+              <AthleteStats />
+            </OnboardingGuard>
+          }
+        />
+        <Route
+          path="/events"
+          element={
+            <OnboardingGuard>
+              <Events />
+            </OnboardingGuard>
+          }
+        />
+        <Route
+          path="/events/:id"
+          element={
+            <OnboardingGuard>
+              <EventDetail />
+            </OnboardingGuard>
+          }
+        />
+        <Route
+          path="/live"
+          element={
+            <OnboardingGuard>
+              <Live />
+            </OnboardingGuard>
+          }
+        />
+        <Route
+          path="/live/:id"
+          element={
+            <OnboardingGuard>
+              <LiveMatch />
+            </OnboardingGuard>
+          }
+        />
+        <Route
+          path="/live/fixture/:fixtureId"
+          element={
+            <OnboardingGuard>
+              <LiveMatch />
+            </OnboardingGuard>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <OnboardingGuard>
+              <AccountSettings />
+            </OnboardingGuard>
+          }
+        />
+        <Route path="/invite/:token" element={<InviteAccept />} />
+      </Routes>
+    </ConfirmProvider>
   )
 }
 

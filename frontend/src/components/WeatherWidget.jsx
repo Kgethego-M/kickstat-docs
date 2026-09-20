@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { apiRequest } from '../lib/api'
+import Loader from './Loader'
 import './WeatherWidget.css'
 
 // US18 — Venue Weather Forecast.
@@ -54,7 +55,11 @@ export default function WeatherWidget({ location, compact = false }) {
   }
 
   if (loading) {
-    return <div className={`weather-widget${compact ? ' weather-widget-compact' : ''}`}>Loading weather…</div>
+    return (
+      <div className={`weather-widget${compact ? ' weather-widget-compact' : ''}`}>
+        <Loader inline size="sm" label="Loading weather..." />
+      </div>
+    )
   }
 
   if (error) {

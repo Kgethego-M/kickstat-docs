@@ -10,6 +10,8 @@ const {
   lineupCheckForLog,
   applySubstitution,
 } = require('../lib/lineups');
+const { ensureRatings, squadFromRows, ratingsPayload } = require('../lib/ratings');
+const { simulateMatch } = require('../lib/match-simulation');
 
 const router = express.Router();
 
@@ -712,6 +714,81 @@ router.put('/:id/lineup', requireAuth(), async (req, res) => {
     res.json({ lineups: await getLineup(pool, { eventId: event.id }) });
   } catch (err) {
     console.error('Error saving event lineup:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/events/:id/simulate — build a full 90-minute script for a simple
+// event from the saved lineup plus each player's rating. The opponent is a
+// free-text name with no roster, so it is simulated as a generic side of a
+// random standard. Nothing is written here: the client replays the script
+// through POST /:id/logs, so a simulated match is recorded exactly like a
+// manually logged one. `mode` only tells the client how to pace that replay.
+router.post('/:id/simulate', requireAuth(), async (req, res) => {
+  try {
+    const mode = req.body && req.body.mode === 'timed' ? 'timed' : 'quick';
+    const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const event = await loadEventWithAccess(pool, req.params.id, squadId);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    if (LEAGUE_FORMATS.has(event.format)) {
+      return res.status(400).json({ error: 'Use fixture endpoints to simulate league matches' });
+    }
+    if (event.squad_id !== squadId) {
+      return res.status(403).json({ error: 'Only the host squad can simulate this event' });
+    }
+    if (event.status === 'cancelled') {
+      return res.status(400).json({ error: 'Event is cancelled' });
+    }
+    if (event.status === 'completed') {
+      return res.status(400).json({ error: 'This event has already finished' });
+    }
+
+    const lineupRows = await getLineup(pool, { eventId: event.id });
+    if (lineupRows.length === 0) {
+      return res.status(400).json({ error: 'Set the starting lineup before simulating' });
+    }
+    const mine = lineupRows.filter((row) => row.team_side === 'home');
+    if (!mine.some((row) => row.is_starter)) {
+      return res.status(400).json({ error: 'Your squad needs a starting XI before simulating' });
+    }
+
+    const ratings = await ensureRatings(
+      pool,
+      mine.map((row) => ({ id: row.athlete_id, name: row.name, position: row.position }))
+    );
+
+    // There is no roster to rate on the other side, so the opponent gets a
+    // standard drawn from the middle of the pack — neither a pushover nor a
+    // giant, and different from one simulation to the next.
+    const opponentRating = 72 + Math.round(Math.random() * 10);
+
+    const { events, summary } = simulateMatch({
+      home: squadFromRows(mine, ratings),
+      away: null,
+      opponentRating,
+    });
+
+    // Simulating implies the match is being played now: an event still
+    // waiting on kickoff goes live first so the replay is accepted.
+    if (event.status === 'scheduled') {
+      await pool.query(
+        "UPDATE events SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
+        [event.id]
+      );
+    }
+
+    res.json({
+      mode,
+      events,
+      summary: { ...summary, opponentRating },
+      ratings: ratingsPayload(ratings),
+    });
+  } catch (err) {
+    console.error('Error simulating event:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });

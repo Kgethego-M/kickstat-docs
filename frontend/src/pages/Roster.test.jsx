@@ -1,8 +1,9 @@
 // AI assistance: drafted with Claude (Sonnet 5) via claude.ai; reviewed and tested by the project team.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import Roster from './Roster'
+import ConfirmProvider from '../components/ConfirmProvider'
 
 const mocks = vi.hoisted(() => ({
   apiRequest: vi.fn(),
@@ -119,9 +120,7 @@ describe('Roster', () => {
     expect(screen.queryByRole('button', { name: /photo for/i })).not.toBeInTheDocument()
   })
 
-  it('deletes an athlete after confirming', async () => {
-    vi.stubGlobal('confirm', vi.fn(() => true))
-
+  it('deletes an athlete after confirming in the dialog', async () => {
     mocks.apiRequest.mockImplementation((path) => {
       if (path === '/api/account/me') return Promise.resolve({ role: 'coach' })
       if (path === '/api/athletes') {
@@ -131,7 +130,11 @@ describe('Roster', () => {
       return Promise.resolve({})
     })
 
-    renderWithRouter(<Roster />)
+    renderWithRouter(
+      <ConfirmProvider>
+        <Roster />
+      </ConfirmProvider>
+    )
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Edit roster/i })).toBeInTheDocument()
@@ -145,13 +148,55 @@ describe('Roster', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Remove/i }))
 
-    expect(window.confirm).toHaveBeenCalledWith('Remove this athlete from the roster?')
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText(/Remove this athlete from the roster/i)).toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
 
     await waitFor(() => {
       expect(mocks.apiRequest).toHaveBeenCalledWith('/api/athletes/1', {
         method: 'DELETE',
         getToken: mocks.getToken,
       })
+    })
+  })
+
+  it('keeps the athlete when the confirm dialog is cancelled', async () => {
+    mocks.apiRequest.mockImplementation((path) => {
+      if (path === '/api/account/me') return Promise.resolve({ role: 'coach' })
+      if (path === '/api/athletes') {
+        return Promise.resolve([{ id: 1, name: 'Alex Morgan', position: 'Forward' }])
+      }
+      return Promise.resolve({})
+    })
+
+    renderWithRouter(
+      <ConfirmProvider>
+        <Roster />
+      </ConfirmProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Edit roster/i })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Edit roster/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Remove/i })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Remove/i }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+    expect(mocks.apiRequest).not.toHaveBeenCalledWith('/api/athletes/1', {
+      method: 'DELETE',
+      getToken: mocks.getToken,
     })
   })
 

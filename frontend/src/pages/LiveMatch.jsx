@@ -2,10 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { useParams, Link, Navigate, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
+import Loader from '../components/Loader'
 import Pitch from '../components/Pitch'
 import LineupWizard from '../components/LineupWizard'
 import { apiRequest } from '../lib/api'
 import { ACTION_TYPES, QUICK_ACTIONS, formatActionType } from '../lib/actions'
+import { useConfirm } from '../lib/confirm'
+import { FULL_TIME_MINUTE, runSimulation } from '../lib/simulation'
 import {
   assistForGoal,
   canLogOn,
@@ -137,6 +140,7 @@ function LiveMatch() {
   } = useMatchDetail()
 
   const { getToken } = useAuth()
+  const confirm = useConfirm()
 
   const [flow, setFlow] = useState(null)
   const [hint, setHint] = useState('')
@@ -147,12 +151,24 @@ function LiveMatch() {
   const [editForm, setEditForm] = useState(null)
   const [editSaving, setEditSaving] = useState(false)
   const [endingFixture, setEndingFixture] = useState(false)
+
+  // --- Match simulation (Quick Sim / Simulate Match). ---
+  // The backend builds the script, weighted by EA FC ratings; this page replays
+  // it through the normal log endpoint, so a simulated match is recorded
+  // exactly like a hand-logged one.
+  const [simulation, setSimulation] = useState(null)
+  const [simLogs, setSimLogs] = useState([])
+  const [simMinute, setSimMinute] = useState(0)
+  const [simScore, setSimScore] = useState({ home: 0, away: 0 })
+  const [simBase, setSimBase] = useState(null)
+  const simCancelRef = useRef(false)
+
   const navigate = useNavigate()
 
   if (loading) {
     return (
       <Layout>
-        <p className="roster-status">Loading live match...</p>
+        <Loader label="Loading live match..." />
       </Layout>
     )
   }
@@ -174,6 +190,19 @@ function LiveMatch() {
   const lineups = detail.lineups || []
   const lineupsSet = lineups.length > 0
   const canLog = isFixture ? detail.canLog : true
+
+  // While a simulation is replaying, the incidents it has just posted are
+  // shown straight away (deduped against whatever the server has already
+  // returned) so the timeline and the player ratings move live.
+  const pendingSimLogs = simLogs.filter(
+    (log) => log?.id != null && !timeline.some((entry) => entry.id === log.id)
+  )
+  const mergedTimeline =
+    pendingSimLogs.length === 0
+      ? timeline
+      : [...timeline, ...pendingSimLogs].sort(
+        (a, b) => (a.minute ?? 0) - (b.minute ?? 0) || (a.id ?? 0) - (b.id ?? 0)
+      )
   const loggingOpen = canLog && activeStatus === 'live'
 
   const homeName = isFixture ? event.home_squad_name : 'Your Squad'
@@ -189,10 +218,10 @@ function LiveMatch() {
   const awayFormation = isFixture ? detectFormation(awaySide.starters, 'away') : null
 
   // Ratings come from whatever has been logged for each player so far.
-  const hasLogs = timeline.length > 0
+  const hasLogs = mergedTimeline.length > 0
   const ratingOf = (athleteId) => {
     if (!hasLogs) return null
-    return computeRating(timeline.filter((e) => e.athlete_id === athleteId))
+    return computeRating(mergedTimeline.filter((e) => e.athlete_id === athleteId))
   }
 
   const withRatings = (rows) =>
@@ -339,7 +368,13 @@ function LiveMatch() {
   }
 
   async function handleUndo(logId) {
-    if (!window.confirm('Undo this log entry?')) return
+    const answer = await confirm({
+      title: 'Undo log entry',
+      message: 'Undo this log entry? It is removed from the timeline and the match stats.',
+      confirmLabel: 'Undo entry',
+      tone: 'danger',
+    })
+    if (!answer) return
     try {
       await apiRequest(`${apiPrefix}/${entityId}/logs/${logId}`, { method: 'DELETE', getToken })
       await loadDetail()
@@ -392,10 +427,15 @@ function LiveMatch() {
   }
 
   async function handleEndFixture() {
-    const message = isFixture
-      ? 'End this fixture? No more actions can be logged.'
-      : 'End this event? No more actions can be logged.'
-    if (!window.confirm(message)) return
+    const answer = await confirm({
+      title: isFixture ? 'End fixture' : 'End event',
+      message: isFixture
+        ? 'End this fixture? No more actions can be logged.'
+        : 'End this event? No more actions can be logged.',
+      confirmLabel: isFixture ? 'End fixture' : 'End event',
+      tone: 'danger',
+    })
+    if (!answer) return
     setEndingFixture(true)
     setError('')
     try {
@@ -412,6 +452,119 @@ function LiveMatch() {
     }
   }
 
+  // --- Simulation controls ------------------------------------------------
+  const simFetching = simulation?.phase === 'fetching'
+  const simRunning = simulation?.phase === 'running'
+  const simBusy = simFetching || simRunning
+  const simReady =
+    canLog && lineupsSet && activeStatus !== 'completed' && activeStatus !== 'cancelled'
+  const simProgress = simFetching
+    ? 4
+    : Math.round((Math.min(simMinute, FULL_TIME_MINUTE) / FULL_TIME_MINUTE) * 100)
+
+  // The scoreboard follows the replay: the score as it stood before kickoff
+  // plus the goals the simulation has produced. The server's own result is
+  // ignored until the closing reload, otherwise the three-second poll would
+  // count every goal a second time.
+  const displayResult = simBase
+    ? { home: simBase.home + simScore.home, away: simBase.away + simScore.away }
+    : result
+  const displayMinute = simBusy ? simMinute : clockMinute
+
+  const ratingsSources = (() => {
+    const values = Object.values(simulation?.ratings || {})
+    if (values.length === 0) return null
+    const dataset = values.filter((rating) => rating.source === 'dataset').length
+    return { dataset, estimated: values.length - dataset, total: values.length }
+  })()
+
+  function handleSimEvent(entry, created) {
+    if (created?.id != null) setSimLogs((prev) => [...prev, created])
+    if (entry.action_type === 'goal' && entry.is_scoring) {
+      const side = entry.team_side === 'away' ? 'away' : 'home'
+      setSimScore((prev) => ({ ...prev, [side]: prev[side] + 1 }))
+    }
+  }
+
+  // mode 'quick' replays the whole match at once; 'timed' walks the 90 minutes
+  // over two real-world minutes so the logging can be watched happening.
+  async function startSimulation(mode) {
+    if (simBusy) return
+
+    if (hasLogs) {
+      const answer = await confirm({
+        title: mode === 'quick' ? 'Quick Sim' : 'Simulate Match',
+        message:
+          'This match already has actions logged. The simulated incidents are added on top of them.',
+        confirmLabel: 'Simulate anyway',
+      })
+      if (!answer) return
+    }
+
+    simCancelRef.current = false
+    setFlow(null)
+    setHint('')
+    setError('')
+    setSimLogs([])
+    setSimMinute(0)
+    setSimScore({ home: 0, away: 0 })
+    setSimBase({ ...result })
+    setSimulation({ mode, phase: 'fetching', posted: 0, total: 0, ratings: null, summary: null })
+
+    let script
+    try {
+      script = await apiRequest(`${apiPrefix}/${entityId}/simulate`, {
+        method: 'POST',
+        body: { mode },
+        getToken,
+      })
+      // Simulating kicks a scheduled match off, so pull the page detail again:
+      // the view switches from the pre-match preview to live logging.
+      await loadDetail()
+    } catch (err) {
+      setSimBase(null)
+      setSimulation({ mode, phase: 'error', posted: 0, total: 0, ratings: null, summary: null })
+      setError(err.message)
+      return
+    }
+
+    const incidents = script.events || []
+    setSimulation((prev) => ({
+      ...prev,
+      phase: 'running',
+      total: incidents.length,
+      ratings: script.ratings || {},
+      summary: script.summary || null,
+    }))
+
+    const report = await runSimulation({
+      script: incidents,
+      mode,
+      postEvent: (body) =>
+        apiRequest(`${apiPrefix}/${entityId}/logs`, { method: 'POST', body, getToken }),
+      onMinute: (minute) => setSimMinute(minute),
+      onEvent: handleSimEvent,
+      isCancelled: () => simCancelRef.current,
+    })
+
+    const failureMessage = report.failures.length > 0 ? report.failures[0].error.message : ''
+    await loadDetail()
+    setSimBase(null)
+    setSimScore({ home: 0, away: 0 })
+    setSimMinute(report.lastMinute)
+    setSimulation((prev) => ({
+      ...prev,
+      phase: report.cancelled ? 'stopped' : 'done',
+      posted: report.posted,
+      failures: report.failures.length,
+    }))
+    if (failureMessage) setError(failureMessage)
+  }
+
+  function stopSimulation() {
+    simCancelRef.current = true
+  }
+
   const header = (
     <div className="live-header">
       <div>
@@ -424,12 +577,47 @@ function LiveMatch() {
               : (event.title || 'Training session'))}
         </h1>
       </div>
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
+      <div className="live-header-actions">
         {activeStatus === 'live' && (
           <span className="live-pulse">
             <span className="live-pulse-dot" />
             <span style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#e04040' }}>Live</span>
           </span>
+        )}
+        {simReady && (
+          <>
+            <button
+              type="button"
+              className="btn btn-gold"
+              disabled={simBusy}
+              onClick={() => startSimulation('quick')}
+              title="Play the whole match straight away and log every incident"
+            >
+              {simFetching && simulation.mode === 'quick' ? (
+                <Loader inline label="Simulating..." />
+              ) : (
+                'Quick Sim'
+              )}
+            </button>
+            <button
+              type="button"
+              className="btn btn-gold"
+              disabled={simBusy}
+              onClick={() => startSimulation('timed')}
+              title="Watch the 90 minutes replay over two real-world minutes"
+            >
+              {simFetching && simulation.mode === 'timed' ? (
+                <Loader inline label="Simulating..." />
+              ) : (
+                'Simulate Match'
+              )}
+            </button>
+          </>
+        )}
+        {simRunning && (
+          <button type="button" className="btn btn-ghost" onClick={stopSimulation}>
+            Stop
+          </button>
         )}
         {loggingOpen && (
           <button
@@ -438,7 +626,13 @@ function LiveMatch() {
             disabled={endingFixture}
             onClick={handleEndFixture}
           >
-            {endingFixture ? 'Ending...' : (isFixture ? 'End fixture' : 'End event')}
+            {endingFixture ? (
+              <Loader inline label="Ending..." />
+            ) : isFixture ? (
+              'End fixture'
+            ) : (
+              'End event'
+            )}
           </button>
         )}
         <Link to={summaryPath} className="btn btn-ghost">Summary</Link>
@@ -573,7 +767,11 @@ function LiveMatch() {
   }
 
   // Linked assists fold into their goal's row instead of standing alone.
-  const visibleTimeline = timeline.filter((e) => !isLinkedAssist(e))
+  const visibleTimeline = mergedTimeline.filter((e) => !isLinkedAssist(e))
+  // Incidents the replay has just posted flash like a hand-logged one.
+  const simLogIds = new Set(
+    simLogs.map((log) => log?.id).filter((value) => value != null)
+  )
 
   return (
     <Layout>
@@ -587,8 +785,8 @@ function LiveMatch() {
           {homeFormation && <span className="live-formation-chip">{homeFormation}</span>}
         </span>
         <div className="live-score-center">
-          <span className="live-minute">{clockMinute}'</span>
-          <span className="live-score">{result.home} - {result.away}</span>
+          <span className="live-minute">{displayMinute}'</span>
+          <span className="live-score">{displayResult.home} - {displayResult.away}</span>
         </div>
         <span className="live-team live-team-right">
           {awayName}
@@ -602,7 +800,56 @@ function LiveMatch() {
         </div>
       )}
 
-      {loggingOpen && (
+      {simBusy && (
+        <div className="live-sim-status" role="status" aria-live="polite">
+          <div className="live-sim-status-row">
+            <span className="live-sim-chip">
+              {simFetching
+                ? 'Fetching player ratings'
+                : `${simulation.mode === 'quick' ? 'Quick Sim' : 'Simulating'} · ${simMinute}'`}
+            </span>
+            <span className="live-sim-meta">
+              {simFetching
+                ? 'Looking up EA FC ratings for the squad — the first run can take a few seconds'
+                : `${simulation.posted} of ${simulation.total} incidents logged`}
+            </span>
+          </div>
+          <div className="live-sim-bar">
+            <span className="live-sim-bar-fill" style={{ width: `${simProgress}%` }} />
+          </div>
+        </div>
+      )}
+
+      {simulation && !simBusy && (
+        <div className="live-sim-result">
+          <div>
+            <span className="live-sim-result-title">
+              {simulation.phase === 'stopped' ? 'Simulation stopped' : 'Simulation complete'}
+            </span>
+            <span className="live-sim-result-line">
+              {displayResult.home} - {displayResult.away} from {simulation.posted} logged incidents
+              {simulation.failures ? ` · ${simulation.failures} rejected` : ''}
+            </span>
+            {ratingsSources && (
+              <span className="live-sim-result-note">
+                EA FC ratings: {ratingsSources.dataset} from the dataset,{' '}
+                {ratingsSources.estimated} estimated by position ({ratingsSources.total} players)
+              </span>
+            )}
+            {simulation.summary && (
+              <span className="live-sim-result-note">
+                Squad {simulation.summary.homeStrength} vs {simulation.summary.awayStrength} · expected
+                goals {simulation.summary.homeExpectedGoals} - {simulation.summary.awayExpectedGoals}
+              </span>
+            )}
+          </div>
+          <button type="button" className="btn btn-ghost" onClick={() => setSimulation(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {loggingOpen && !simBusy && (
         <>
           <h3 className="live-section-heading">Log Event</h3>
           <div className="live-action-grid">
@@ -698,7 +945,7 @@ function LiveMatch() {
         awayPlayers={withRatings(awaySide.starters)}
         selectedId={selectedId}
         fadedIds={fadedIds}
-        onSelect={loggingOpen ? handlePickPlayer : undefined}
+        onSelect={loggingOpen && !simBusy ? handlePickPlayer : undefined}
       />
 
       <div className="live-bench">
@@ -747,8 +994,8 @@ function LiveMatch() {
                 : entry.action_type.includes('penalty')
                   ? 'live-timeline-minute--penalty'
                   : ''
-            const isNew = newEntryIds.has(entry.id)
-            const assist = entry.action_type === 'goal' ? assistForGoal(timeline, entry.id) : null
+            const isNew = newEntryIds.has(entry.id) || simLogIds.has(entry.id)
+            const assist = entry.action_type === 'goal' ? assistForGoal(mergedTimeline, entry.id) : null
             const subOnId = entry.action_type === 'substitution' ? parseSubstitutionNotes(entry.notes) : null
             return (
             <div key={entry.id}>
@@ -758,7 +1005,7 @@ function LiveMatch() {
                 </span>
                 <div className="live-timeline-body">
                   <span className="live-timeline-action">{formatActionType(entry.action_type)}</span>
-                  <span className="live-timeline-who">{entry.athlete_name || 'Opponent'}</span>
+                  <span className="live-timeline-who">{entry.athlete_name || nameById.get(entry.athlete_id) || 'Opponent'}</span>
                   {assist && (
                     <span className="live-timeline-detail">
                       assist: {assist.athlete_name || nameById.get(assist.athlete_id) || '—'}
@@ -770,7 +1017,7 @@ function LiveMatch() {
                     </span>
                   )}
                 </div>
-                {canLog && (
+                {canLog && !simBusy && (
                   <div className="live-timeline-actions">
                     <button type="button" className="btn btn-ghost" onClick={() => openEdit(entry)}>
                       Edit
@@ -842,7 +1089,7 @@ function LiveMatch() {
                       Cancel
                     </button>
                     <button type="submit" className="btn btn-gold" disabled={editSaving}>
-                      {editSaving ? 'Saving...' : 'Save changes'}
+                      {editSaving ? <Loader inline label="Saving..." /> : 'Save changes'}
                     </button>
                   </div>
                 </form>

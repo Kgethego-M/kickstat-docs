@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
+import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
 import { useCountUp } from '../lib/useCountUp'
 import './Dashboard.css'
@@ -113,7 +114,7 @@ function Dashboard() {
   if (loading && !data) {
     return (
       <Layout>
-        <p className="roster-status">Loading dashboard...</p>
+        <Loader label="Loading dashboard..." />
       </Layout>
     )
   }
@@ -388,7 +389,7 @@ function Dashboard() {
               required
             />
             <button type="submit" className="btn btn-gold dash-invite-btn" disabled={inviteSending}>
-              {inviteSending ? 'Sending…' : 'Send invite'}
+              {inviteSending ? <Loader inline label="Sending..." /> : 'Send invite'}
             </button>
           </form>
           {inviteError && <p className="dash-invite-error">{inviteError}</p>}
