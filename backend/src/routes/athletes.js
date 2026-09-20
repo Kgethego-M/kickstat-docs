@@ -37,7 +37,7 @@ router.get('/', requireAuth(), async (req, res) => {
 // specific athlete row, so accepting it links to these exact stats (US24/25).
 router.post('/', requireAuth(), async (req, res) => {
   try {
-    const { name, position, squad_number, date_of_birth, contact_info, email } = req.body;
+    const { name, position, squad_number, date_of_birth, contact_info, email, height_cm, weight_kg, tactical_tags, coach_notes } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Athlete name is required' });
@@ -47,14 +47,30 @@ router.post('/', requireAuth(), async (req, res) => {
       return res.status(400).json({ error: 'Invalid email address' });
     }
 
+    if (height_cm != null && (height_cm < 50 || height_cm > 300)) {
+      return res.status(400).json({ error: 'Height must be between 50 and 300 cm' });
+    }
+
+    if (weight_kg != null && (weight_kg < 10 || weight_kg > 300)) {
+      return res.status(400).json({ error: 'Weight must be between 10 and 300 kg' });
+    }
+
+    if (tactical_tags != null && typeof tactical_tags !== 'string') {
+      return res.status(400).json({ error: 'Tactical tags must be a string' });
+    }
+
+    if (coach_notes != null && typeof coach_notes !== 'string') {
+      return res.status(400).json({ error: 'Coach notes must be a string' });
+    }
+
     const { userId: clerkUserId } = getAuth(req);
     const userId = await getOrCreateUserId(pool, clerkUserId);
     const squadId = await getOwnedSquadIdForCoach(pool, clerkUserId);
 
     const result = await pool.query(
-      `INSERT INTO athletes (squad_id, name, position, squad_number, date_of_birth, contact_info, email)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [squadId, name.trim(), position || null, squad_number || null, date_of_birth || null, contact_info || null, email || null]
+      `INSERT INTO athletes (squad_id, name, position, squad_number, date_of_birth, contact_info, email, height_cm, weight_kg, tactical_tags, coach_notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [squadId, name.trim(), position || null, squad_number || null, date_of_birth || null, contact_info || null, email || null, height_cm || null, weight_kg || null, tactical_tags || null, coach_notes || null]
     );
     const athlete = result.rows[0];
 
@@ -124,12 +140,21 @@ router.get('/:id/stats', requireAuth(), async (req, res) => {
       (i) => !i.cleared_at && i.return_date && i.return_date.toISOString().slice(0, 10) >= today
     ) || null;
 
+    // Compute BMI if height and weight are available
+    const athlete = athleteResult.rows[0];
+    let bmi = null;
+    if (athlete.height_cm && athlete.weight_kg && athlete.height_cm > 0) {
+      const heightM = athlete.height_cm / 100;
+      bmi = +(athlete.weight_kg / (heightM * heightM)).toFixed(1);
+    }
+
     res.json({
-      athlete: athleteResult.rows[0],
+      athlete,
       stats: { goals, assists, penalties, yellowCards, redCards, appearances },
       logs,
       injuries,
       currentInjury,
+      bmi,
     });
   } catch (err) {
     console.error('Error fetching athlete stats:', err.message);
@@ -152,10 +177,26 @@ router.patch('/:id', requireAuth(), async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to edit this athlete' });
     }
 
-    const { name, position, squad_number, date_of_birth, contact_info, email, is_managed } = req.body;
+    const { name, position, squad_number, date_of_birth, contact_info, email, is_managed, height_cm, weight_kg, tactical_tags, coach_notes } = req.body;
 
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email address' });
+    }
+
+    if (height_cm != null && (height_cm < 50 || height_cm > 300)) {
+      return res.status(400).json({ error: 'Height must be between 50 and 300 cm' });
+    }
+
+    if (weight_kg != null && (weight_kg < 10 || weight_kg > 300)) {
+      return res.status(400).json({ error: 'Weight must be between 10 and 300 kg' });
+    }
+
+    if (tactical_tags != null && typeof tactical_tags !== 'string') {
+      return res.status(400).json({ error: 'Tactical tags must be a string' });
+    }
+
+    if (coach_notes != null && typeof coach_notes !== 'string') {
+      return res.status(400).json({ error: 'Coach notes must be a string' });
     }
 
     // Profile photos arrive as data URLs (downscaled in the browser before
@@ -186,10 +227,14 @@ router.patch('/:id', requireAuth(), async (req, res) => {
            contact_info = COALESCE($5, contact_info),
            email = COALESCE($6, email),
            is_managed = COALESCE($7, is_managed),
+           height_cm = COALESCE($11, height_cm),
+           weight_kg = COALESCE($12, weight_kg),
+           tactical_tags = COALESCE($13, tactical_tags),
+           coach_notes = COALESCE($14, coach_notes),
            photo = CASE WHEN $9::boolean THEN $10 ELSE photo END,
            updated_at = now()
        WHERE id = $8 RETURNING *`,
-      [name, position, squad_number, date_of_birth, contact_info, email || null, typeof is_managed === 'boolean' ? is_managed : null, req.params.id, hasPhotoUpdate, photo]
+      [name, position, squad_number, date_of_birth, contact_info, email || null, typeof is_managed === 'boolean' ? is_managed : null, req.params.id, hasPhotoUpdate, photo, height_cm || null, weight_kg || null, tactical_tags || null, coach_notes || null]
     );
 
     res.json(result.rows[0]);
