@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { useParams, Link } from 'react-router-dom'
 import Layout from '../components/Layout'
+import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
 import { formatActionType } from '../lib/actions'
+import { useConfirm } from '../lib/confirm'
 import { useCountUp } from '../lib/useCountUp'
 import './AthleteStats.css'
 
@@ -404,6 +406,7 @@ function SaveMapCard({ seed, saves, conceded }) {
 function AthleteStats() {
   const { id } = useParams()
   const { getToken } = useAuth()
+  const confirm = useConfirm()
 
   const [data, setData] = useState(null)
   const [role, setRole] = useState(null)
@@ -488,7 +491,12 @@ function AthleteStats() {
   }
 
   async function handleClearInjury(injuryId) {
-    if (!window.confirm('Mark this injury as cleared?')) return
+    const answer = await confirm({
+      title: 'Clear injury',
+      message: 'Mark this injury as cleared? The athlete is available for selection again.',
+      confirmLabel: 'Mark cleared',
+    })
+    if (!answer) return
     try {
       await apiRequest(`/api/injuries/${injuryId}`, {
         method: 'PATCH',
@@ -523,7 +531,7 @@ function AthleteStats() {
   if (loading) {
     return (
       <Layout>
-        <p className="roster-status">Loading athlete stats...</p>
+        <Loader label="Loading athlete stats..." />
       </Layout>
     )
   }
@@ -725,7 +733,7 @@ function AthleteStats() {
             </p>
             <div className="roster-form-actions">
               <button type="submit" className="btn btn-gold" disabled={savingInjury}>
-                {savingInjury ? 'Saving...' : 'Save injury'}
+                {savingInjury ? <Loader inline label="Saving..." /> : 'Save injury'}
               </button>
             </div>
           </form>

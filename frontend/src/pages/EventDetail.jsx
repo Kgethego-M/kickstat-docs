@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
+import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
 import { ACTION_TYPES, formatActionType } from '../lib/actions'
+import { useConfirm } from '../lib/confirm'
 import WeatherWidget from '../components/WeatherWidget'
 import { useCountUp } from '../lib/useCountUp'
 import './EventDetail.css'
@@ -53,6 +55,7 @@ function StatNumber({ value, suffix = '' }) {
 
 function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
   const { event, result, timeline } = detail
+  const confirm = useConfirm()
   const [logForm, setLogForm] = useState(emptyLogForm)
   const [editingLogId, setEditingLogId] = useState(null)
   const [logSaving, setLogSaving] = useState(false)
@@ -181,7 +184,13 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
   }
 
   async function handleUndo(logId) {
-    if (!window.confirm('Undo this log entry?')) return
+    const answer = await confirm({
+      title: 'Undo log entry',
+      message: 'Undo this log entry? It is removed from the timeline and the match stats.',
+      confirmLabel: 'Undo entry',
+      tone: 'danger',
+    })
+    if (!answer) return
     try {
       await apiRequest(`/api/events/${id}/logs/${logId}`, { method: 'DELETE', getToken })
       onChange()
@@ -264,7 +273,7 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
               Cancel
             </button>
             <button type="submit" className="btn btn-gold" disabled={eventSaving}>
-              {eventSaving ? 'Saving...' : 'Save changes'}
+              {eventSaving ? <Loader inline label="Saving..." /> : 'Save changes'}
             </button>
           </div>
         </form>
@@ -345,7 +354,13 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
             </button>
           )}
           <button type="submit" className="btn btn-gold" disabled={logSaving}>
-            {logSaving ? 'Saving...' : editingLogId ? 'Save changes' : 'Log action'}
+            {logSaving ? (
+              <Loader inline label="Saving..." />
+            ) : editingLogId ? (
+              'Save changes'
+            ) : (
+              'Log action'
+            )}
           </button>
         </div>
         {logError && <div className="roster-error">{logError}</div>}
@@ -475,7 +490,7 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
         </div>
         {isOpen && !mySquadJoined && (
           <button className="btn btn-gold lg-join-btn" disabled={joining} onClick={handleJoin}>
-            {joining ? 'Joining...' : 'Join league'}
+            {joining ? <Loader inline label="Joining..." /> : 'Join league'}
           </button>
         )}
       </header>
@@ -709,7 +724,11 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
                           }
                           onClick={() => handleSaveFixtureDate(fixture.id)}
                         >
-                          {savingFixtureDateId === fixture.id ? 'Saving...' : 'Save kickoff'}
+                          {savingFixtureDateId === fixture.id ? (
+                            <Loader inline label="Saving..." />
+                          ) : (
+                            'Save kickoff'
+                          )}
                         </button>
                       </div>
                     ) : (
@@ -723,7 +742,11 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
                         disabled={startingFixtureId === fixture.id}
                         onClick={() => handleStartFixture(fixture.id)}
                       >
-                        {startingFixtureId === fixture.id ? 'Starting...' : 'Start live'}
+                        {startingFixtureId === fixture.id ? (
+                          <Loader inline label="Starting..." />
+                        ) : (
+                          'Start live'
+                        )}
                       </button>
                     )}
                     {fixture.status === 'live' && (
@@ -865,7 +888,7 @@ function EventDetail() {
   if (loading) {
     return (
       <Layout>
-        <p className="roster-status">Loading event...</p>
+        <Loader label="Loading event..." />
       </Layout>
     )
   }

@@ -279,6 +279,107 @@
   font-size: 14px;
 }
 
+/* Quick Sim / Simulate Match controls in the page header */
+.live-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Simulation progress: fetching ratings, then the two-minute replay */
+.live-sim-status {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-chalk);
+}
+
+.live-sim-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.live-sim-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(var(--color-lime-rgb), 0.18);
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.live-sim-meta {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+
+.live-sim-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(var(--color-ink-rgb), 0.12);
+  overflow: hidden;
+}
+
+.live-sim-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-lime-deep), var(--color-lime));
+  transition: width 0.4s ease;
+}
+
+/* Post-simulation summary strip */
+.live-sim-result {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  border: 1px solid var(--color-line);
+  border-left: 4px solid var(--color-lime);
+  border-radius: var(--radius-sm);
+  background: var(--color-chalk);
+}
+
+.live-sim-result-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+.live-sim-result-line {
+  display: block;
+  margin-top: 4px;
+  font-size: 15px;
+  color: var(--color-ink);
+}
+
+.live-sim-result-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+
 /* Active quick-action highlight while a logging flow runs */
 .live-action-btn.is-active {
   outline: 3px solid var(--color-lime);

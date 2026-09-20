@@ -29,7 +29,7 @@ const pool = new Pool({
 
 async function resetDatabase() {
   await pool.query(
-    'TRUNCATE log_entries, events, invites, athletes, squads, users RESTART IDENTITY CASCADE'
+    'TRUNCATE player_ratings, log_entries, events, invites, athletes, squads, users RESTART IDENTITY CASCADE'
   )
 }
 

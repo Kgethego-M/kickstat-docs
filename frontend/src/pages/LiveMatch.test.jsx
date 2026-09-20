@@ -152,3 +152,141 @@ describe('LiveMatch lineup gate', () => {
     expect(screen.queryByRole('button', { name: 'Assist' })).not.toBeInTheDocument()
   })
 })
+
+// A two-incident script: a squad goal and an opponent goal. The ratings payload
+// mixes one dataset hit with one position estimate.
+const simScript = {
+  mode: 'quick',
+  events: [
+    { minute: 12, team_side: 'home', action_type: 'goal', is_scoring: true, athlete_id: 1 },
+    { minute: 40, team_side: 'away', action_type: 'goal', is_scoring: true, athlete_id: null },
+  ],
+  summary: {
+    homeStrength: 78.5,
+    awayStrength: 76,
+    homeExpectedGoals: 1.8,
+    awayExpectedGoals: 1.1,
+    homeGoals: 1,
+    awayGoals: 1,
+    eventCount: 2,
+  },
+  ratings: {
+    1: { overall: 84, position: 'ST', source: 'dataset' },
+    2: { overall: 75, position: 'CM', source: 'estimated' },
+  },
+}
+
+describe('LiveMatch simulation', () => {
+  beforeEach(() => {
+    mocks.apiRequest.mockReset()
+    mocks.getToken.mockResolvedValue('test-token')
+  })
+
+  function mockSimulation() {
+    let logId = 100
+    mocks.apiRequest.mockImplementation((path, options) => {
+      if (path === '/api/athletes') return Promise.resolve(athletes)
+      if (path.endsWith('/simulate')) return Promise.resolve(simScript)
+      if (path === '/api/events/5/logs') {
+        logId += 1
+        return Promise.resolve({ id: logId, ...options.body })
+      }
+      if (path === '/api/events/5') {
+        return Promise.resolve(
+          eventDetail({
+            event: { status: 'live', started_at: new Date().toISOString() },
+            lineups: lineupRows(11),
+          })
+        )
+      }
+      return Promise.resolve({})
+    })
+  }
+
+  it('replays a Quick Sim through the normal log endpoint', async () => {
+    mockSimulation()
+
+    renderLive('/live/5')
+
+    expect(await screen.findByRole('button', { name: 'Quick Sim' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Simulate Match' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quick Sim' }))
+
+    await waitFor(() => {
+      expect(mocks.apiRequest).toHaveBeenCalledWith(
+        '/api/events/5/simulate',
+        expect.objectContaining({ method: 'POST', body: { mode: 'quick' } })
+      )
+    })
+
+    // Every incident is recorded through the same endpoint a coach logs with.
+    await waitFor(() => {
+      expect(mocks.apiRequest).toHaveBeenCalledWith(
+        '/api/events/5/logs',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.objectContaining({ minute: 12, action_type: 'goal', athlete_id: 1 }),
+        })
+      )
+    })
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      '/api/events/5/logs',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.objectContaining({ minute: 40, action_type: 'goal', athlete_id: null }),
+      })
+    )
+
+    // Both incidents land on the timeline: the squad player by name, the
+    // opponent action as "Opponent".
+    expect(await screen.findByText('Simulation complete')).toBeInTheDocument()
+    expect(screen.getByText("12'")).toBeInTheDocument()
+    expect(screen.getByText("40'")).toBeInTheDocument()
+    expect(screen.getByText('Squad Player 1')).toBeInTheDocument()
+    expect(screen.getByText('2 logged incidents', { exact: false })).toBeInTheDocument()
+
+    // The ratings footnote is explicit about dataset hits versus estimates.
+    expect(
+      screen.getByText(/1 from the dataset, 1 estimated by position/i)
+    ).toBeInTheDocument()
+  })
+
+  it('stops a timed Simulate Match part way through', async () => {
+    mockSimulation()
+
+    renderLive('/live/5')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Simulate Match' }))
+
+    await waitFor(() => {
+      expect(mocks.apiRequest).toHaveBeenCalledWith(
+        '/api/events/5/simulate',
+        expect.objectContaining({ body: { mode: 'timed' } })
+      )
+    })
+
+    // The replay walks the clock over two real minutes, so it can be stopped.
+    const stop = await screen.findByRole('button', { name: 'Stop' })
+    fireEvent.click(stop)
+
+    await waitFor(
+      () => expect(screen.getByText('Simulation stopped')).toBeInTheDocument(),
+      { timeout: 5000 }
+    )
+  })
+
+  it('offers the simulations only once the starting XI is set', async () => {
+    mocks.apiRequest.mockImplementation((path) => {
+      if (path === '/api/events/5') return Promise.resolve(eventDetail())
+      if (path === '/api/athletes') return Promise.resolve(athletes)
+      return Promise.resolve({})
+    })
+
+    renderLive('/live/5')
+
+    expect(await screen.findByText('Set the lineups')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Quick Sim' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Simulate Match' })).not.toBeInTheDocument()
+  })
+})

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
+import { useConfirm } from '../lib/confirm'
 import { fileToProfilePhoto } from '../lib/image'
 import './Roster.css'
 
@@ -62,6 +63,7 @@ function currentSeason() {
 
 function Roster() {
   const { getToken } = useAuth()
+  const confirm = useConfirm()
   const [athletes, setAthletes] = useState([])
   const [statsById, setStatsById] = useState({})
   const [squadName, setSquadName] = useState('')
@@ -269,7 +271,13 @@ function Roster() {
   }
 
   async function handleDelete(id) {
-    if (!window.confirm('Remove this athlete from the roster?')) return
+    const answer = await confirm({
+      title: 'Remove athlete',
+      message: 'Remove this athlete from the roster? Their logged stats stay in the match history.',
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    })
+    if (!answer) return
     try {
       await apiRequest(`/api/athletes/${id}`, { method: 'DELETE', getToken })
       await loadAthletes()
@@ -312,7 +320,13 @@ function Roster() {
 
   async function handleRemovePhoto() {
     if (!editingId) return
-    if (!window.confirm("Remove this athlete's profile photo?")) return
+    const answer = await confirm({
+      title: 'Remove profile photo',
+      message: "Remove this athlete's profile photo? Their initials will show on the card instead.",
+      confirmLabel: 'Remove photo',
+      tone: 'danger',
+    })
+    if (!answer) return
     setPhotoSavingId(editingId)
     setError('')
     try {
@@ -579,11 +593,15 @@ function Roster() {
                   onClick={handleRemovePhoto}
                   disabled={photoSavingId === editingId}
                 >
-                  {photoSavingId === editingId ? 'Removing...' : 'Remove photo'}
+                  {photoSavingId === editingId ? (
+                    <Loader inline label="Removing..." />
+                  ) : (
+                    'Remove photo'
+                  )}
                 </button>
               )}
               <button type="submit" className="btn btn-gold" disabled={saving}>
-                {saving ? 'Saving...' : 'Save athlete'}
+                {saving ? <Loader inline label="Saving..." /> : 'Save athlete'}
               </button>
             </div>
           </form>

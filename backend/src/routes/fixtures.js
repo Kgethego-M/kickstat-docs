@@ -10,8 +10,14 @@ const {
   lineupCheckForLog,
   applySubstitution,
 } = require('../lib/lineups');
+const { ensureRatings, squadFromRows, ratingsPayload } = require('../lib/ratings');
+const { simulateMatch } = require('../lib/match-simulation');
 
 const router = express.Router();
+
+function startingXiReady(rows) {
+  return rows.some((row) => row.is_starter);
+}
 
 async function getFixtureWithAccess(pool, fixtureId, squadId) {
   const result = await pool.query(
@@ -170,6 +176,75 @@ router.put('/:id/lineup', requireAuth(), async (req, res) => {
     res.json({ lineups: await getLineup(pool, { fixtureId: fixture.id }) });
   } catch (err) {
     console.error('Error saving fixture lineup:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/fixtures/:id/simulate — build a full 90-minute script for this
+// fixture from the saved lineups plus each player's rating.
+//
+// Nothing is written here: the client replays the script through
+// POST /:id/logs, so a simulated match is recorded exactly like a manually
+// logged one. `mode` only tells the client how to pace that replay — 'quick'
+// applies every event at once, 'timed' spreads the 90 minutes over two real
+// minutes.
+router.post('/:id/simulate', requireAuth(), async (req, res) => {
+  try {
+    const mode = req.body && req.body.mode === 'timed' ? 'timed' : 'quick';
+    const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const fixture = await getFixtureWithAccess(pool, req.params.id, squadId);
+    if (!fixture) {
+      return res.status(404).json({ error: 'Fixture not found' });
+    }
+    if (fixture.home_squad_id !== squadId) {
+      return res.status(403).json({ error: 'Only the home team can simulate this fixture' });
+    }
+    if (fixture.status === 'cancelled') {
+      return res.status(400).json({ error: 'Fixture is cancelled' });
+    }
+    if (fixture.status === 'completed') {
+      return res.status(400).json({ error: 'This fixture has already finished' });
+    }
+
+    const lineupRows = await getLineup(pool, { fixtureId: fixture.id });
+    if (lineupRows.length === 0) {
+      return res.status(400).json({ error: 'Set the starting lineups before simulating' });
+    }
+
+    const bySide = { home: [], away: [] };
+    for (const row of lineupRows) {
+      if (bySide[row.team_side]) bySide[row.team_side].push(row);
+    }
+    if (!startingXiReady(bySide.home) || !startingXiReady(bySide.away)) {
+      return res.status(400).json({ error: 'Both teams need a starting XI before simulating' });
+    }
+
+    const ratings = await ensureRatings(
+      pool,
+      lineupRows.map((row) => ({ id: row.athlete_id, name: row.name, position: row.position }))
+    );
+
+    const squadOf = (rows) => squadFromRows(rows, ratings);
+
+    const { events, summary } = simulateMatch({
+      home: squadOf(bySide.home),
+      away: squadOf(bySide.away),
+    });
+
+    // Simulating implies the match is being played now: a fixture still
+    // waiting on kickoff goes live first so the replay is accepted.
+    if (fixture.status === 'scheduled') {
+      await pool.query(
+        "UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
+        [fixture.id]
+      );
+    }
+
+    res.json({ mode, events, summary, ratings: ratingsPayload(ratings) });
+  } catch (err) {
+    console.error('Error simulating fixture:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
