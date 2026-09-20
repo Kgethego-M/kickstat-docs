@@ -182,6 +182,7 @@ artifacts (`backend-coverage`, `frontend-coverage`) on each CI run.
 | PATCH | `/api/events/:id` | Update event (title, status, etc.) |
 | POST | `/api/events/:id/join` | Join an open league/tournament |
 | POST | `/api/events/:id/logs` | Log a live action (US13) |
+| POST | `/api/events/:id/simulate` | Build a ratings-weighted 90-minute script for a live event (Quick Sim / Simulate Match) |
 | PATCH | `/api/events/:id/logs/:logId` | Edit a log entry (US14) |
 | DELETE | `/api/events/:id/logs/:logId` | Undo a log entry (US14) |
 | GET | `/api/fixtures/:id` | Fixture detail with timeline |
@@ -189,6 +190,7 @@ artifacts (`backend-coverage`, `frontend-coverage`) on each CI run.
 | POST | `/api/fixtures/:id/logs` | Log a fixture action |
 | PATCH | `/api/fixtures/:id/logs/:logId` | Edit a fixture log entry |
 | DELETE | `/api/fixtures/:id/logs/:logId` | Undo a fixture log entry |
+| POST | `/api/fixtures/:id/simulate` | Build a ratings-weighted 90-minute script for a fixture (home squad only) |
 | POST | `/api/invites` | Create an assistant invite (coach only) |
 
 ## Deployment
@@ -213,7 +215,10 @@ is only needed for out-of-band fixes.
 ### Deployment inventory
 
 Third-party services used by the app: **Clerk** (auth), **Resend** (invite/reminder
-emails), **football-data.org** (external fixtures API).
+emails), **football-data.org** (external fixtures API), **Open-Meteo** (venue
+weather, no key required) and the **EA FC player ratings dataset** (Hugging Face
+datasets-server, no key required — weights the Quick Sim / Simulate Match
+simulation, with a position-based estimate for players it does not know).
 
 CI auto-deploy is wired through three secrets stored in Gitea
 (Settings → Actions → Secrets — values are never committed to the repo):
