@@ -1,6 +1,6 @@
 const { Router } = require('express')
 const { requireAuth, getAuth } = require('../middleware/auth')
-const { pool } = require('../db')
+const pool = require('../db')
 const { getOwnedSquadId } = require('./_squad')
 
 const router = Router()
