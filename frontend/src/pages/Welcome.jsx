@@ -39,7 +39,7 @@ function Welcome() {
               your team.
             </p>
             <div className="welcome-actions">
-              <Link to="/sign-up" className="welcome-cta">
+              <Link to="/public" className="welcome-cta">
                 GET STARTED <span className="welcome-cta-arrow">&rarr;</span>
               </Link>
               <Link to="/sign-in" className="welcome-cta-secondary">SIGN IN</Link>
