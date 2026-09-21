@@ -414,7 +414,7 @@ function Sessions() {
                         <div className="sessions-plan-phase-label" style={{ borderColor: phaseColor(phase) }}>
                           {phase}
                         </div>
-                        {phaseDrills.map((d, idx) => {
+                        {phaseDrills.map((d) => {
                           const phaseStartIdx = sessionPlan.findIndex((p) => p.phase === phase)
                           const firstInPhase = sessionPlan.indexOf(d) === phaseStartIdx
                           const lastInPhase = phaseDrills[phaseDrills.length - 1].id === d.id
