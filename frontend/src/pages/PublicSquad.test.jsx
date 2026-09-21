@@ -4,10 +4,13 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import PublicSquad from './PublicSquad'
 
 function mockFetchOnce(data) {
-  global.fetch = vi.fn().mockResolvedValue({
-    ok: true,
-    json: () => Promise.resolve(data),
-  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(data),
+    })
+  )
 }
 
 function renderAt(path) {
@@ -44,6 +47,7 @@ const payload = {
 describe('PublicSquad', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('renders the squad name, player count and computed W-D-L record', async () => {
@@ -117,10 +121,13 @@ describe('PublicSquad', () => {
   })
 
   it('shows an error state for a squad that is not public', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: () => Promise.resolve({ error: 'This squad has not made a public page available' }),
-    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: () => Promise.resolve({ error: 'This squad has not made a public page available' }),
+      })
+    )
     renderAt('/public/999')
 
     await waitFor(() => {

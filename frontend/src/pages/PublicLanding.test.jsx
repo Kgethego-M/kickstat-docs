@@ -4,10 +4,13 @@ import { MemoryRouter } from 'react-router-dom'
 import PublicLanding from './PublicLanding'
 
 function mockFetchOnce(data) {
-  global.fetch = vi.fn().mockResolvedValue({
-    ok: true,
-    json: () => Promise.resolve(data),
-  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(data),
+    })
+  )
 }
 
 function renderPage() {
@@ -21,6 +24,7 @@ function renderPage() {
 describe('PublicLanding', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('renders the public squads directory once loaded', async () => {
@@ -138,7 +142,7 @@ describe('PublicLanding', () => {
   })
 
   it('shows an error message when the request fails', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('network down'))
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
     renderPage()
 
     await waitFor(() => {
