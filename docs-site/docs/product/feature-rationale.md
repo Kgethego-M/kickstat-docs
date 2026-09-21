@@ -78,6 +78,12 @@ This page explains why each major feature exists and what user problem it solves
 
 **What it does:** During a live event, users log actions (goal, yellow card, red card, penalty, save, substitution) against an athlete or the opponent. Entries can be undone via soft delete.
 
+### Ratings-weighted match simulation (Quick Sim & Simulate Match)
+
+**Why:** Logging a match by hand costs the 90 real minutes it takes to play, so a match that was already played can't be reconstructed, and the live view can't be demonstrated or rehearsed without sitting through a full game. Generating a realistic match instead makes that possible, and lets the whole logging pipeline be exercised end-to-end on demand.
+
+**What it does:** Two extra buttons on the live match page generate and play back a full 90 minutes, using the players in the squad's saved lineup (starters and bench). **Quick Sim** posts the whole match at once; **Simulate Match** replays the same script over exactly two real minutes so the logging is visible as it happens. Outcomes are weighted by each player's rating — resolved from an external dataset, or estimated from position for anyone the dataset does not know (details on the [EA FC Player Ratings Dataset](../third-party/player-ratings.md) page) — and the script is replayed through the ordinary log endpoint, so a simulated match is recorded the same way as a hand-logged one. Manual logging is unchanged, and this extends the US13–US16 live logging flow rather than replacing it.
+
 ### Venue weather forecast (US18)
 
 **Why:** Outdoor sports depend on weather. Showing the forecast at the venue helps coaches decide whether to proceed, postpone, or change kit.

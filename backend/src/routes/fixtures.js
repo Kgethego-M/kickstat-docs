@@ -12,6 +12,8 @@ const {
 } = require('../lib/lineups');
 const { ensureRatings, squadFromRows, ratingsPayload } = require('../lib/ratings');
 const { simulateMatch } = require('../lib/match-simulation');
+const { findClashes } = require('../lib/clashes');
+const { getMatchAvailability, availabilityError } = require('../lib/availability');
 
 const router = express.Router();
 
@@ -22,6 +24,7 @@ function startingXiReady(rows) {
 async function getFixtureWithAccess(pool, fixtureId, squadId) {
   const result = await pool.query(
     `SELECT f.*, e.format AS event_format, e.required_teams,
+            e.duration_minutes AS event_duration_minutes,
             home.name AS home_squad_name,
             away.name AS away_squad_name
      FROM fixtures f
@@ -97,6 +100,32 @@ router.get('/:id', requireAuth(), async (req, res) => {
   }
 });
 
+// GET /api/fixtures/:id/clashes — re-check this fixture's window against the
+// squad's calendar (its own events plus fixtures in joined competitions).
+router.get('/:id/clashes', requireAuth(), async (req, res) => {
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const fixture = await getFixtureWithAccess(pool, req.params.id, squadId);
+    if (!fixture) {
+      return res.status(404).json({ error: 'Fixture not found' });
+    }
+
+    const clashes = await findClashes(
+      pool,
+      squadId,
+      fixture.event_date,
+      fixture.event_duration_minutes,
+      { excludeFixtureId: fixture.id }
+    );
+    res.json(clashes);
+  } catch (err) {
+    console.error('Error checking fixture clashes:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // PATCH /api/fixtures/:id — update fixture status or kickoff time
 router.patch('/:id', requireAuth(), async (req, res) => {
   try {
@@ -114,6 +143,19 @@ router.patch('/:id', requireAuth(), async (req, res) => {
     }
 
     const { event_date, status } = req.body;
+
+    // A fixture is a match: it can only kick off once enough of the home
+    // squad has confirmed availability (see lib/availability).
+    if (status === 'live' && fixture.status !== 'live') {
+      const availability = await getMatchAvailability(pool, {
+        eventId: fixture.event_id,
+        squadId: fixture.home_squad_id,
+      });
+      if (!availability.meets) {
+        return res.status(400).json({ error: availabilityError(availability), availability });
+      }
+    }
+
     const result = await pool.query(
       `UPDATE fixtures
        SET event_date = COALESCE($1, event_date),
@@ -166,14 +208,26 @@ router.put('/:id/lineup', requireAuth(), async (req, res) => {
 
     await saveLineup(pool, { fixtureId: fixture.id }, rows);
 
+    // Saving the XIs after kickoff normally starts the fixture — but only
+    // when enough of the home squad is available. The lineups themselves
+    // still save either way; the client surfaces startBlocked as a hint.
+    let startBlocked = null;
     if (fixture.status === 'scheduled' && (!fixture.event_date || new Date(fixture.event_date).getTime() <= Date.now())) {
-      await pool.query(
-        "UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
-        [fixture.id]
-      );
+      const availability = await getMatchAvailability(pool, {
+        eventId: fixture.event_id,
+        squadId: fixture.home_squad_id,
+      });
+      if (!availability.meets) {
+        startBlocked = availability;
+      } else {
+        await pool.query(
+          "UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
+          [fixture.id]
+        );
+      }
     }
 
-    res.json({ lineups: await getLineup(pool, { fixtureId: fixture.id }) });
+    res.json({ lineups: await getLineup(pool, { fixtureId: fixture.id }), startBlocked });
   } catch (err) {
     console.error('Error saving fixture lineup:', err.message);
     res.status(500).json({ error: 'Server error' });
@@ -234,8 +288,16 @@ router.post('/:id/simulate', requireAuth(), async (req, res) => {
     });
 
     // Simulating implies the match is being played now: a fixture still
-    // waiting on kickoff goes live first so the replay is accepted.
+    // waiting on kickoff goes live first so the replay is accepted — subject
+    // to the same availability bar as every other way a match can start.
     if (fixture.status === 'scheduled') {
+      const availability = await getMatchAvailability(pool, {
+        eventId: fixture.event_id,
+        squadId: fixture.home_squad_id,
+      });
+      if (!availability.meets) {
+        return res.status(400).json({ error: availabilityError(availability), availability });
+      }
       await pool.query(
         "UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
         [fixture.id]
@@ -286,6 +348,20 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
       return res.status(404).json({ error: 'Fixture not found' });
     }
 
+    // Idempotent replay: an offline-queued log is retried with the same
+    // client-generated id, so a create that already landed returns the
+    // stored row instead of inserting a duplicate.
+    const clientId = req.body.client_id ? String(req.body.client_id).slice(0, 64) : null;
+    if (clientId) {
+      const existing = await pool.query(
+        'SELECT * FROM log_entries WHERE client_id = $1 AND fixture_id = $2 LIMIT 1',
+        [clientId, fixture.id]
+      );
+      if (existing.rows.length > 0) {
+        return res.status(200).json(existing.rows[0]);
+      }
+    }
+
     if (fixture.status === 'cancelled') {
       return res.status(400).json({ error: 'Fixture is cancelled' });
     }
@@ -296,10 +372,18 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
     }
 
     // Same rule as events: no logging before the scheduled kickoff; a log
-    // after kickoff starts the fixture automatically.
+    // after kickoff starts the fixture automatically — provided enough of the
+    // home squad is available, so the RSVP bar can't be bypassed by logging.
     if (fixture.status === 'scheduled') {
       if (fixture.event_date && new Date(fixture.event_date).getTime() > Date.now()) {
         return res.status(400).json({ error: 'This fixture has not started yet' });
+      }
+      const availability = await getMatchAvailability(pool, {
+        eventId: fixture.event_id,
+        squadId: fixture.home_squad_id,
+      });
+      if (!availability.meets) {
+        return res.status(400).json({ error: availabilityError(availability), availability });
       }
       await pool.query(
         "UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
@@ -370,8 +454,8 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
     try {
       await client.query('BEGIN');
       const result = await client.query(
-        `INSERT INTO log_entries (event_id, fixture_id, athlete_id, action_type, is_scoring, value, minute, notes, logged_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        `INSERT INTO log_entries (event_id, fixture_id, athlete_id, action_type, is_scoring, value, minute, notes, logged_by, client_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
         [
           fixture.event_id,
           fixture.id,
@@ -382,6 +466,7 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
           minute ?? null,
           entryNotes,
           userId,
+          clientId,
         ]
       );
       createdEntry = result.rows[0];
@@ -396,6 +481,17 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
+      // Two replays of the same queued log can race; the unique index makes
+      // the loser read back the winner's row instead of failing.
+      if (clientId && err.code === '23505') {
+        const existing = await pool.query(
+          'SELECT * FROM log_entries WHERE client_id = $1 AND fixture_id = $2 LIMIT 1',
+          [clientId, fixture.id]
+        );
+        if (existing.rows.length > 0) {
+          return res.status(200).json(existing.rows[0]);
+        }
+      }
       throw err;
     } finally {
       client.release();
@@ -478,7 +574,17 @@ router.delete('/:id/logs/:logId', requireAuth(), async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized to undo this log entry' });
+      // Idempotent undo: an offline queue may replay a delete that already
+      // landed. Already-gone is a success; only a truly unknown entry 404s,
+      // so a replayed undo never wedges the queue forever.
+      const exists = await pool.query(
+        'SELECT id FROM log_entries WHERE id = $1 AND fixture_id = $2',
+        [req.params.logId, req.params.id]
+      );
+      if (exists.rows.length === 0) {
+        return res.status(404).json({ error: 'Log entry not found' });
+      }
+      return res.sendStatus(204);
     }
 
     // Undoing a goal also wipes its linked assist entries.

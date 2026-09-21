@@ -11,6 +11,7 @@ import Sessions from './pages/Sessions'
 import Setup from './pages/Setup'
 import AccountSettings from './pages/AccountSettings'
 import InviteAccept from './pages/InviteAccept'
+import PublicSquad from './pages/PublicSquad'
 import Events from './pages/Events'
 import EventDetail from './pages/EventDetail'
 import Live from './pages/Live'
@@ -132,6 +133,7 @@ function App() {
           }
         />
         <Route path="/invite/:token" element={<InviteAccept />} />
+        <Route path="/public/:token" element={<PublicSquad />} />
       </Routes>
     </ConfirmProvider>
   )

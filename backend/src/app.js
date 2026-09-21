@@ -18,6 +18,7 @@ const injuriesRouter = require('./routes/injuries');
 const compareRouter = require('./routes/compare');
 const tacticsRouter = require('./routes/tactics');
 const sessionsRouter = require('./routes/sessions');
+const publicRouter = require('./routes/public');
 const { sendEventReminders } = require('./lib/reminders');
 
 const app = express();
@@ -39,6 +40,9 @@ app.use(cors({
 // downscaled in the browser) fit without hitting a 413.
 app.use(express.json({ limit: '1mb' }));
 app.use('/api/dashboard', dashboardRouter);
+// No auth middleware — the token in the URL is the access control (see
+// public.js). Mounted before clerkMiddleware like /api/dashboard above.
+app.use('/api/public', publicRouter);
 app.use(clerkMiddleware());
 
 // Moved here from before `const app = express()` — that's what was crashing
@@ -78,27 +82,65 @@ app.get('/api/me', requireAuth(), (req, res) => {
 // Shared pool from db.js — previously a second pool created just for the
 // sweep, which doubled this process's connection count.
 const sweepPool = require('./db');
+const { getMatchAvailability } = require('./lib/availability');
+
+// Matches and fixtures may only start once enough players are available, so
+// the sweep checks each due row individually instead of flipping every one in
+// a single UPDATE — the RSVP bar holds for the automatic start exactly as it
+// does for the Start live button (see lib/availability). A match that is short
+// of available players simply stays 'scheduled' until the squad responds.
+async function startDueMatches() {
+  const matchCandidates = await sweepPool.query(
+    `SELECT id, squad_id FROM events
+     WHERE status = 'scheduled' AND format = 'match' AND event_date <= now()`
+  );
+  for (const row of matchCandidates.rows) {
+    const availability = await getMatchAvailability(sweepPool, { eventId: row.id, squadId: row.squad_id });
+    if (!availability.meets) continue;
+    await sweepPool.query(
+      `UPDATE events SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now()
+       WHERE id = $1 AND status = 'scheduled'`,
+      [row.id]
+    );
+  }
+
+  // League/tournament fixtures follow the same bar (their event carries the
+  // RSVPs; the home squad is the one that fields the team).
+  const fixtureCandidates = await sweepPool.query(
+    `SELECT id, event_id, home_squad_id FROM fixtures
+     WHERE status = 'scheduled' AND event_date <= now()`
+  );
+  for (const row of fixtureCandidates.rows) {
+    const availability = await getMatchAvailability(sweepPool, {
+      eventId: row.event_id,
+      squadId: row.home_squad_id,
+    });
+    if (!availability.meets) continue;
+    await sweepPool.query(
+      `UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now()
+       WHERE id = $1 AND status = 'scheduled'`,
+      [row.id]
+    );
+  }
+}
 
 async function runAutoTransitionSweep() {
   try {
-    // Simple events only. League/tournament containers also pass through a
-    // 'scheduled' state (while teams are joining) and must never auto-start;
-    // their fixtures transition individually below.
+    // Training sessions carry no availability bar, so they still flip in one
+    // statement. League/tournament containers also pass through a 'scheduled'
+    // state (while teams are joining) and must never auto-start; their
+    // fixtures transition individually above.
     await sweepPool.query(
       `UPDATE events SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now()
-       WHERE status = 'scheduled' AND format IN ('match', 'training') AND event_date <= now()`
+       WHERE status = 'scheduled' AND format = 'training' AND event_date <= now()`
     );
+    await startDueMatches();
     await sweepPool.query(
       `UPDATE events SET status = 'completed', updated_at = now()
        WHERE status = 'live' AND format IN ('match', 'training')
          AND COALESCE(started_at, event_date) + (COALESCE(duration_minutes, 90) || ' minutes')::interval <= now()`
     );
 
-    // League/tournament fixtures
-    await sweepPool.query(
-      `UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now()
-       WHERE status = 'scheduled' AND event_date <= now()`
-    );
     await sweepPool.query(
       `UPDATE fixtures f
        SET status = 'completed', updated_at = now()

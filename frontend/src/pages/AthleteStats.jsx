@@ -7,7 +7,19 @@ import { apiRequest } from '../lib/api'
 import { formatActionType } from '../lib/actions'
 import { useConfirm } from '../lib/confirm'
 import { useCountUp } from '../lib/useCountUp'
+import StatOverrideControl from '../components/StatOverrideControl'
 import './AthleteStats.css'
+
+// Maps a stat card's display label to the stat_key the backend's override
+// endpoint understands. Cards not listed here (BMI, G+A/match, GK
+// estimates) aren't directly-logged counts, so they can't be overridden.
+const OVERRIDE_STAT_KEY = {
+  Appearances: 'appearances',
+  Goals: 'goals',
+  Assists: 'assists',
+  'Yellow cards': 'yellowCards',
+  'Red cards': 'redCards',
+}
 
 const emptyInjuryForm = {
   description: '',
@@ -545,7 +557,7 @@ function AthleteStats() {
     )
   }
 
-  const { athlete, injuries, currentInjury, bmi } = data
+  const { athlete, injuries, currentInjury, bmi, overrides, stats } = data
   const seed = Number(athlete.id) || 1
   const group = positionGroup(athlete.position)
 
@@ -558,7 +570,21 @@ function AthleteStats() {
   // training data is tracked yet: injured < managed < ready.
   const readiness = currentInjury ? 25 : athlete.is_managed ? 60 : 95
 
-  const involvementsPerMatch = agg.appearances > 0 ? ((agg.goals + agg.assists) / agg.appearances).toFixed(1) : '0.0'
+  // The season view shows the server's numbers: it computes the same totals
+  // across the whole log but folds in any manual corrections, so a corrected
+  // stat is the figure the coach sees. The 7d/30d windows are client-side
+  // slices of that log and a correction is a lifetime figure — those stay
+  // computed (and un-editable) as before.
+  const seasonStats = {
+    appearances: stats?.appearances ?? agg.appearances,
+    goals: stats?.goals ?? agg.goals,
+    assists: stats?.assists ?? agg.assists,
+    yellowCards: stats?.yellowCards ?? agg.yellowCards,
+    redCards: stats?.redCards ?? agg.redCards,
+  }
+  const shown = period === 'season' ? seasonStats : agg
+
+  const involvementsPerMatch = shown.appearances > 0 ? ((shown.goals + shown.assists) / shown.appearances).toFixed(1) : '0.0'
   const gk = group === 'gk' ? gkEstimates(seed, aggregate(logs).appearances) : null
 
   const age = athlete.date_of_birth
@@ -572,18 +598,18 @@ function AthleteStats() {
 
   const statCards = group === 'gk'
     ? [
-        { label: 'Appearances', value: agg.appearances, dark: true },
+        { label: 'Appearances', value: shown.appearances, dark: true },
         { label: 'Saves', value: gk.saves, dark: true, note: 'season estimate' },
         { label: 'Save %', value: gk.savePct, suffix: '%', accent: true, note: 'season estimate' },
         { label: 'Clean sheets', value: gk.cleanSheets, dark: true, note: 'season estimate' },
       ]
     : [
-        { label: 'Appearances', value: agg.appearances, dark: true },
-        { label: 'Goals', value: agg.goals, accent: true },
-        { label: 'Assists', value: agg.assists, dark: true },
+        { label: 'Appearances', value: shown.appearances, dark: true },
+        { label: 'Goals', value: shown.goals, accent: true },
+        { label: 'Assists', value: shown.assists, dark: true },
         { label: 'G+A / match', value: Number(involvementsPerMatch), dark: true },
-        { label: 'Yellow cards', value: agg.yellowCards, dark: true },
-        { label: 'Red cards', value: agg.redCards, dark: true },
+        { label: 'Yellow cards', value: shown.yellowCards, dark: true },
+        { label: 'Red cards', value: shown.redCards, dark: true },
       ]
 
   if (bmi != null) {
@@ -646,15 +672,32 @@ function AthleteStats() {
               {' · estimate'}
             </span>
           </div>
-          {statCards.map((card) => (
-            <div key={card.label} className={`ath-stat-card${card.accent ? ' ath-stat-card-accent' : ''}`}>
-              <span className="ath-stat-label">{card.label}</span>
-              <span className={`ath-stat-value${card.dark ? ' ath-stat-value-dark' : ''}`}>
-                <StatNumber value={card.value} suffix={card.suffix || ''} />
-              </span>
-              <span className="ath-stat-note">{card.note || `in this ${period === 'season' ? 'season' : period.replace('d', ' days')}`}</span>
-            </div>
-          ))}
+          {statCards.map((card) => {
+            // Overrides are lifetime corrections computed on the full log,
+            // so they only apply to (and are only editable from) the
+            // full-season view — a 7d/30d window is a different number.
+            const statKey = OVERRIDE_STAT_KEY[card.label]
+            const override = statKey ? overrides?.[statKey] : null
+            const canOverride = isCoach && period === 'season' && statKey
+            return (
+              <div key={card.label} className={`ath-stat-card${card.accent ? ' ath-stat-card-accent' : ''}`}>
+                <span className="ath-stat-label">{card.label}</span>
+                <span className={`ath-stat-value${card.dark ? ' ath-stat-value-dark' : ''}`}>
+                  <StatNumber value={card.value} suffix={card.suffix || ''} />
+                </span>
+                <span className="ath-stat-note">{card.note || `in this ${period === 'season' ? 'season' : period.replace('d', ' days')}`}</span>
+                {canOverride && (
+                  <StatOverrideControl
+                    athleteId={id}
+                    statKey={statKey}
+                    override={override}
+                    getToken={getToken}
+                    onChange={load}
+                  />
+                )}
+              </div>
+            )
+          })}
         </div>
 
         <div className="ath-charts-grid">

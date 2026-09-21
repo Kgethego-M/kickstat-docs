@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import request from 'supertest'
 import express from 'express'
-import { pool, resetDatabase, seedCoach } from './setup'
+import { pool, resetDatabase, seedCoach, seedAvailability } from './setup'
 
 import eventsRouter from '../../src/routes/events'
 import fixturesRouter from '../../src/routes/fixtures'
@@ -85,6 +85,10 @@ async function createLeague() {
 
   const creatorSquadId = detail.body.teams.find((t) => t.is_mine).squad_id
   const homeFixture = detail.body.fixtures.find((f) => f.home_squad_id === creatorSquadId)
+
+  // The availability gate reads the home squad's RSVPs on the league event;
+  // a fully available squad keeps the existing "save the XI, go live" flow.
+  await seedAvailability(eventId, homeAthletes)
 
   return {
     eventId,
@@ -469,6 +473,7 @@ describe('simple event lineups', () => {
   test('own XI is required before logging, then goals count as usual', async () => {
     const event = await createSimpleEvent()
     const athletes = await seedRoster(squadId, 11)
+    await seedAvailability(event.id, athletes)
 
     const blocked = await request(app)
       .post(`/api/events/${event.id}/logs`)
@@ -523,6 +528,7 @@ describe('simple event lineups', () => {
   test('simple events keep the bench rule', async () => {
     const event = await createSimpleEvent()
     const athletes = await seedRoster(squadId, 12)
+    await seedAvailability(event.id, athletes)
 
     await request(app)
       .put(`/api/events/${event.id}/lineup`)

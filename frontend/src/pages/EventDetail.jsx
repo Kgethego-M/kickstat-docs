@@ -7,6 +7,9 @@ import { apiRequest } from '../lib/api'
 import { ACTION_TYPES, formatActionType } from '../lib/actions'
 import { useConfirm } from '../lib/confirm'
 import WeatherWidget from '../components/WeatherWidget'
+import VenueMapEditor from '../components/VenueMapEditor'
+import ClashBanner from '../components/ClashBanner'
+import RsvpPanel from '../components/RsvpPanel'
 import { useCountUp } from '../lib/useCountUp'
 import './EventDetail.css'
 
@@ -37,6 +40,14 @@ function toLocalInputValue(iso) {
   return local.toISOString().slice(0, 16)
 }
 
+// The API stores the venue pin as a number or null; the map editor treats
+// null/'' as "no pin", so normalise the two the same way here.
+function toCoordInput(value) {
+  if (value === null || value === undefined || value === '') return null
+  const num = Number(value)
+  return Number.isFinite(num) ? num : null
+}
+
 function formatDateTime(iso) {
   if (!iso) return ''
   return new Date(iso).toLocaleString(undefined, {
@@ -54,7 +65,7 @@ function StatNumber({ value, suffix = '' }) {
 }
 
 function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
-  const { event, result, timeline } = detail
+  const { event, result, timeline, availability } = detail
   const confirm = useConfirm()
   const [logForm, setLogForm] = useState(emptyLogForm)
   const [editingLogId, setEditingLogId] = useState(null)
@@ -71,6 +82,8 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
       name: event.event_type === 'match' ? (event.opponent || '') : (event.title || ''),
       event_date: toLocalInputValue(event.event_date),
       location: event.location || '',
+      lat: toCoordInput(event.location_lat),
+      lng: toCoordInput(event.location_lng),
       duration_minutes: String(event.duration_minutes ?? 90),
     })
     setEditingEvent(true)
@@ -84,6 +97,10 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
     const body = {
       event_date: eventForm.event_date,
       location: eventForm.location.trim() || null,
+      // Sent together, nulls included: clearing the pin in the map editor
+      // should clear it on the server too.
+      location_lat: eventForm.lat,
+      location_lng: eventForm.lng,
       duration_minutes: Number(eventForm.duration_minutes) || 90,
     }
     if (event.event_type === 'match') {
@@ -267,6 +284,15 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
                 onChange={(e) => setEventForm({ ...eventForm, duration_minutes: e.target.value })}
               />
             </label>
+            <div className="roster-form-wide">
+              <span className="event-form-map-heading">Pitch pin — click the map to set the venue</span>
+              <VenueMapEditor
+                latitude={eventForm.lat}
+                longitude={eventForm.lng}
+                label={eventForm.location}
+                onChange={({ lat, lng }) => setEventForm((f) => ({ ...f, lat, lng }))}
+              />
+            </div>
           </div>
           <div className="roster-form-actions">
             <button type="button" className="btn btn-ghost" onClick={() => { setEditingEvent(false); setEventForm(null) }}>
@@ -279,7 +305,26 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
         </form>
       )}
 
-      {event.location && <WeatherWidget location={event.location} />}
+      <ClashBanner eventId={id} getToken={getToken} />
+      <RsvpPanel eventId={id} getToken={getToken} />
+
+      {event.status === 'scheduled' && availability && !availability.meets && (
+        <div className="event-availability-note">
+          <strong>
+            {availability.available} of {availability.required} players available
+          </strong>{' '}
+          — the match can&apos;t go live until at least {availability.required} players are marked
+          available in the RSVP panel above.
+        </div>
+      )}
+
+      {(event.location || event.location_lat) && (
+        <WeatherWidget
+          location={event.location}
+          latitude={event.location_lat}
+          longitude={event.location_lng}
+        />
+      )}
 
       {error && <div className="roster-error">{error}</div>}
 
@@ -495,7 +540,19 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
         )}
       </header>
 
-      {event.location && <WeatherWidget location={event.location} />}
+      <ClashBanner eventId={id} getToken={getToken} />
+
+      {/* Fixtures are gated on the home squad's availability, so the panel
+          that collects it belongs on the league page too. */}
+      <RsvpPanel eventId={id} getToken={getToken} />
+
+      {(event.location || event.location_lat) && (
+        <WeatherWidget
+          location={event.location}
+          latitude={event.location_lat}
+          longitude={event.location_lng}
+        />
+      )}
 
       {error && <div className="roster-error">{error}</div>}
 

@@ -156,22 +156,39 @@ async function fetchWeather(latitude, longitude) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/weather?location=<venue name>
+// GET /api/weather?location=<venue name>&lat=<num>&lng=<num>
 //
 // Not tied to a specific event id on purpose — this lets the event
 // creation form show a live preview as the coach types a venue, before
 // the event (and its id) exists, as well as the event detail page once
 // it's saved.
+//
+// When the coach has pinned the pitch on the venue map, the saved lat/lng
+// are passed through instead of geocoding the name: the forecast (and the
+// marker on the map) then belongs to the exact spot they picked, whatever
+// the venue is called.
 // ---------------------------------------------------------------------------
+function parseCoord(value, min, max) {
+  if (value === undefined || value === '') return null;
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < min || num > max) return null;
+  return num;
+}
+
 router.get('/', requireAuth(), async (req, res) => {
   const location = (req.query.location || '').trim();
+  const lat = parseCoord(req.query.lat, -90, 90);
+  const lng = parseCoord(req.query.lng, -180, 180);
+  const pinned = lat !== null && lng !== null;
 
-  if (!location) {
+  if (!location && !pinned) {
     return res.status(400).json({ error: 'location query parameter is required' });
   }
 
   try {
-    const place = await geocodeLocation(location);
+    const place = pinned
+      ? { name: null, admin1: null, country: null, latitude: lat, longitude: lng }
+      : await geocodeLocation(location);
     if (!place) {
       return res.status(404).json({ error: `Could not find a location matching "${location}"` });
     }
@@ -179,8 +196,10 @@ router.get('/', requireAuth(), async (req, res) => {
     const weather = await fetchWeather(place.latitude, place.longitude);
 
     res.json({
-      query: location,
-      resolvedLocation: [place.name, place.admin1, place.country].filter(Boolean).join(', '),
+      query: location || null,
+      resolvedLocation: pinned
+        ? (location || 'Pinned location')
+        : [place.name, place.admin1, place.country].filter(Boolean).join(', '),
       latitude: place.latitude,
       longitude: place.longitude,
       current: weather.current,

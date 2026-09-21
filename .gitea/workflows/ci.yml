@@ -344,19 +344,32 @@ jobs:
 
       # Render auto-deploys the backend whenever the GitHub fork's main
       # advances, so syncing the commit there IS the backend deploy.
+      #
+      # The mirror must always fast-forward from Gitea main. If someone pushes
+      # to the GitHub fork directly the histories diverge and this push is
+      # rejected — that once left the Render backend stuck on an old build for
+      # days (every new endpoint 404ed in production) because the failure was
+      # only a warning. It now fails the job loudly instead.
       - name: Sync main to GitHub (triggers Render backend deploy)
         env:
           # Named GH_PAT because Gitea forbids secrets starting with GITHUB_
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           if [ -z "$GH_PAT" ]; then
-            echo "::warning::GH_PAT secret not set — skipping backend deploy sync"
-            exit 0
+            echo "::error::GH_PAT secret not set — the backend cannot be deployed"
+            exit 1
           fi
           git remote remove github 2>/dev/null || true
           git remote add github "https://x-access-token:${GH_PAT}@github.com/TasmiyaChoonara/sport-coaching-tool.git"
-          git push github HEAD:main \
-            || echo "::warning::GitHub sync failed — check GH_PAT; backend not updated"
+          git fetch --no-tags github main
+          if ! git merge-base --is-ancestor github/main HEAD; then
+            echo "::error::The GitHub mirror has diverged from Gitea main — backend NOT updated."
+            echo "::error::Mirror-only commits not in our history:"
+            git log --oneline --max-count=5 HEAD..github/main || true
+            echo "::error::Reconcile: git fetch github main:mirror-main && git merge mirror-main && git push origin main"
+            exit 1
+          fi
+          git push github HEAD:main
 
       - name: Build frontend
         working-directory: ./frontend

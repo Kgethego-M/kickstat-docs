@@ -132,4 +132,43 @@ describe('AthleteStats', () => {
 
     expect(screen.getByRole('button', { name: /Save injury/i })).toBeInTheDocument()
   })
+
+  it('renders season cards from the server stats rather than the log totals', async () => {
+    // stats.goals is 4 while the log only holds a single 2-goal row —
+    // the card must show the server figure, not a client-side recount.
+    mockApi(basePayload)
+
+    renderAt()
+
+    await waitFor(() => {
+      expect(screen.getByText('Goals')).toBeInTheDocument()
+    })
+
+    const goalsCard = screen.getByText('Goals').closest('.ath-stat-card')
+    expect(goalsCard.querySelector('.ath-stat-value')).toHaveTextContent('4')
+  })
+
+  it('shows the corrected value and the corrected badge when an override exists', async () => {
+    mockApi({
+      ...basePayload,
+      stats: { ...basePayload.stats, goals: 7 },
+      overrides: { goals: { value: 7, note: 'Includes cup goals' } },
+    })
+
+    renderAt()
+
+    await waitFor(() => {
+      expect(screen.getByText('Goals')).toBeInTheDocument()
+    })
+
+    const goalsCard = screen.getByText('Goals').closest('.ath-stat-card')
+    expect(goalsCard.querySelector('.ath-stat-value')).toHaveTextContent('7')
+    const badge = goalsCard.querySelector('.stat-override-badge')
+    expect(badge).toHaveTextContent('corrected')
+    expect(badge).toHaveAttribute('title', 'Includes cup goals')
+
+    // Stats without an override don't carry the badge.
+    const assistsCard = screen.getByText('Assists').closest('.ath-stat-card')
+    expect(assistsCard.querySelector('.stat-override-badge')).toBeNull()
+  })
 })

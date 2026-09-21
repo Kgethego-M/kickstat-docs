@@ -5,7 +5,18 @@ import Layout from '../components/Layout'
 import Loader from '../components/Loader'
 import Pitch from '../components/Pitch'
 import LineupWizard from '../components/LineupWizard'
-import { apiRequest } from '../lib/api'
+import { apiRequest, isRetryableError } from '../lib/api'
+import {
+  enqueue,
+  findQueuedCreate,
+  flushQueue,
+  getQueue,
+  newClientId,
+  onConnectivityChange,
+  queueLength,
+  removeQueuedCreate,
+  updateQueuedCreate,
+} from '../lib/offlineQueue'
 import { ACTION_TYPES, QUICK_ACTIONS, formatActionType } from '../lib/actions'
 import { useConfirm } from '../lib/confirm'
 import { FULL_TIME_MINUTE, runSimulation } from '../lib/simulation'
@@ -146,11 +157,205 @@ function LiveMatch() {
   const [hint, setHint] = useState('')
   const [logging, setLogging] = useState(false)
   const [savingLineup, setSavingLineup] = useState(false)
+  // Set when the XI is saved on a match that is due but short of available
+  // players: the server keeps the lineups but refuses to kick off.
+  const [startBlocked, setStartBlocked] = useState(null)
 
   const [editingEntryId, setEditingEntryId] = useState(null)
   const [editForm, setEditForm] = useState(null)
   const [editSaving, setEditSaving] = useState(false)
   const [endingFixture, setEndingFixture] = useState(false)
+
+  // --- Offline-first logging. ---
+  // matchKey namespaces the queue per event/fixture, so switching matches
+  // (or opening two on different devices) can't cross-contaminate queues.
+  const matchKey = `${apiPrefix}/${entityId}`
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [pendingCount, setPendingCount] = useState(() => queueLength(matchKey))
+  const [syncing, setSyncing] = useState(false)
+  const [syncNote, setSyncNote] = useState('')
+  const syncingRef = useRef(false)
+
+  // Optimistic layer: queued rows are mirrored here so the timeline and the
+  // scoreboard move the moment an action is taken — a queued create keeps
+  // its client id as `id` until the server assigns the real one.
+  const [pendingCreates, setPendingCreates] = useState([])
+  const [pendingRemovals, setPendingRemovals] = useState(() => new Set())
+  const [pendingEdits, setPendingEdits] = useState(() => ({}))
+
+  // Restore the optimistic view from a queue left behind by a previous
+  // session (actions queued offline, then the tab was closed or crashed).
+  useEffect(() => {
+    const queued = getQueue(matchKey)
+    if (queued.length === 0) return
+    setPendingCreates((prev) => [
+      ...prev,
+      ...queued
+        .filter((a) => a.type === 'create' && !prev.some((p) => p.id === a.clientId))
+        .map((a) => ({ id: a.clientId, _pending: true, ...a.body })),
+    ])
+    for (const a of queued) {
+      const id = Number(a.path.split('/').pop())
+      if (Number.isNaN(id)) continue
+      if (a.type === 'undo') setPendingRemovals((prev) => new Set(prev).add(id))
+      if (a.type === 'edit') setPendingEdits((prev) => ({ ...prev, [id]: a.body }))
+    }
+  }, [matchKey])
+
+  // Builds the row shown in the timeline while a create waits in the queue.
+  function buildOptimisticRow(clientIdValue, body) {
+    const entryNotes = body.action_type === 'substitution' && body.substitute_athlete_id
+      ? `on:${Number(body.substitute_athlete_id)}`
+      : (body.notes || null)
+    return {
+      id: clientIdValue,
+      _pending: true,
+      athlete_id: body.athlete_id ?? null,
+      action_type: body.action_type,
+      is_scoring: Boolean(body.is_scoring),
+      value: body.value ?? 1,
+      minute: body.minute ?? null,
+      notes: entryNotes,
+      logged_at: new Date().toISOString(),
+    }
+  }
+
+  // Queues a create and shows it on the timeline straight away.
+  function queueLog(body) {
+    const clientIdValue = newClientId()
+    enqueue(matchKey, {
+      type: 'create',
+      clientId: clientIdValue,
+      path: `${apiPrefix}/${entityId}/logs`,
+      method: 'POST',
+      body: { ...body, client_id: clientIdValue },
+    })
+    const rows = [buildOptimisticRow(clientIdValue, body)]
+    if (body.assist_athlete_id) {
+      rows.push({
+        id: `${clientIdValue}-assist`,
+        _pending: true,
+        athlete_id: body.assist_athlete_id,
+        action_type: 'assist',
+        is_scoring: false,
+        value: 1,
+        minute: body.minute ?? null,
+        related_log_id: clientIdValue,
+      })
+    }
+    setPendingCreates((prev) => [...prev, ...rows])
+    setPendingCount(queueLength(matchKey))
+  }
+
+  const trySync = useCallback(async () => {
+    if (!navigator.onLine || syncingRef.current) return
+    syncingRef.current = true
+    setSyncing(true)
+    try {
+      const results = await flushQueue(matchKey, apiRequest, getToken)
+
+      // A create that synced exposes the server's own row: swap the mirror
+      // onto its numeric id so the dedupe effect can retire it once the
+      // timeline refresh catches up. Anything the server permanently
+      // rejected is retired here too — and reported, not swallowed.
+      const createdRows = results.filter(
+        (r) => r.ok && r.action.type === 'create' && r.result?.id != null
+      )
+      const droppedCreates = results.filter((r) => r.dropped && r.action.type === 'create')
+      const resolvedId = (r) => Number(r.action.path.split('/').pop())
+
+      setPendingCreates((prev) => prev
+        .filter((row) => !droppedCreates.some(
+          (r) => r.action.clientId === row.id || r.action.clientId === row.related_log_id
+        ))
+        .map((row) => {
+          const goal = createdRows.find((r) => r.action.clientId === row.id)
+          if (goal) return { ...goal.result, _pending: true }
+          const assistOf = createdRows.find((r) => r.action.clientId === row.related_log_id)
+          if (assistOf) return { ...row, related_log_id: assistOf.result.id }
+          return row
+        })
+      )
+
+      setPendingRemovals((prev) => {
+        const next = new Set(prev)
+        for (const r of results) {
+          if (r.action.type === 'undo') next.delete(resolvedId(r))
+        }
+        return next
+      })
+
+      setPendingEdits((prev) => {
+        let next = prev
+        for (const r of results) {
+          if (r.action.type === 'edit' && next[resolvedId(r)]) {
+            next = { ...next }
+            delete next[resolvedId(r)]
+          }
+        }
+        return next
+      })
+
+      const droppedCount = results.filter((r) => r.dropped).length
+      if (droppedCount > 0) {
+        setSyncNote(
+          `${droppedCount} queued ${droppedCount === 1 ? 'action was' : 'actions were'} rejected by the server and skipped.`
+        )
+      }
+
+      setPendingCount(queueLength(matchKey))
+      await loadDetail()
+    } finally {
+      syncingRef.current = false
+      setSyncing(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchKey, getToken])
+
+  useEffect(() => {
+    const handleChange = () => {
+      setIsOnline(navigator.onLine)
+      if (navigator.onLine) trySync()
+    }
+    const off = onConnectivityChange(handleChange)
+    // Also try once on mount, in case actions were queued in a previous
+    // session that ended (or crashed) before they could sync.
+    if (navigator.onLine && queueLength(matchKey) > 0) trySync()
+    return off
+  }, [matchKey, trySync])
+
+  // A dropped connection mid-match doesn't fire a browser 'offline' event
+  // if the wifi/data just goes flaky rather than fully off — so also retry
+  // periodically whenever something is still queued, and whenever the tab
+  // comes back to the foreground.
+  useEffect(() => {
+    if (pendingCount === 0) return undefined
+    const interval = setInterval(trySync, 5000)
+    const retryOnFocus = () => trySync()
+    window.addEventListener('focus', retryOnFocus)
+    document.addEventListener('visibilitychange', retryOnFocus)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', retryOnFocus)
+      document.removeEventListener('visibilitychange', retryOnFocus)
+    }
+  }, [pendingCount, trySync])
+
+  // Retire optimistic rows the server has caught up with: a synced create
+  // whose numeric id is now in the timeline, or a synthetic assist whose
+  // goal has arrived (the real pair comes back together).
+  useEffect(() => {
+    const ids = new Set((detail?.timeline || []).map((e) => e.id))
+    if (ids.size === 0) return
+    setPendingCreates((prev) => {
+      const next = prev.filter((row) => {
+        if (typeof row.id === 'number' && ids.has(row.id)) return false
+        if (row.related_log_id != null && ids.has(row.related_log_id)) return false
+        return true
+      })
+      return next.length === prev.length ? prev : next
+    })
+  }, [detail?.timeline])
 
   // --- Match simulation (Quick Sim / Simulate Match). ---
   // The backend builds the script, weighted by EA FC ratings; this page replays
@@ -193,17 +398,37 @@ function LiveMatch() {
 
   // While a simulation is replaying, the incidents it has just posted are
   // shown straight away (deduped against whatever the server has already
-  // returned) so the timeline and the player ratings move live.
+  // returned) so the timeline and the player ratings move live. The same
+  // layering puts queued (not yet synced) rows on screen immediately.
+  const timelineIds = new Set(timeline.map((entry) => entry.id))
   const pendingSimLogs = simLogs.filter(
-    (log) => log?.id != null && !timeline.some((entry) => entry.id === log.id)
+    (log) => log?.id != null && !timelineIds.has(log.id)
   )
-  const mergedTimeline =
-    pendingSimLogs.length === 0
-      ? timeline
-      : [...timeline, ...pendingSimLogs].sort(
-        (a, b) => (a.minute ?? 0) - (b.minute ?? 0) || (a.id ?? 0) - (b.id ?? 0)
-      )
+  const optimisticRows = pendingCreates
+    .filter((row) => !timelineIds.has(row.id))
+    .map((row) => ({ ...row, ...(pendingEdits[row.id] || {}) }))
+  const hasOptimisticLayer =
+    pendingSimLogs.length > 0 || optimisticRows.length > 0 ||
+    pendingRemovals.size > 0 || Object.keys(pendingEdits).length > 0
+  const mergedTimeline = hasOptimisticLayer
+    ? [...timeline, ...pendingSimLogs, ...optimisticRows]
+      .filter((entry) => !pendingRemovals.has(entry.id))
+      .map((entry) => ({ ...entry, ...(pendingEdits[entry.id] || {}) }))
+      .sort((a, b) => {
+        const minuteDiff = (a.minute ?? 0) - (b.minute ?? 0)
+        if (minuteDiff !== 0) return minuteDiff
+        if (typeof a.id === 'number' && typeof b.id === 'number') return a.id - b.id
+        return String(a.id ?? '').localeCompare(String(b.id ?? ''))
+      })
+    : timeline
   const loggingOpen = canLog && activeStatus === 'live'
+
+  // Saving the XI on a due match normally starts it — unless the squad is
+  // short of available players. Surface the server's refusal wherever the
+  // coach lands after saving.
+  const blockedNote = startBlocked
+    ? `Lineups saved, but the match can't go live yet: only ${startBlocked.available} of ${startBlocked.required} required players are marked available. Collect more RSVPs on the event page, then start the match.`
+    : ''
 
   const homeName = isFixture ? event.home_squad_name : 'Your Squad'
   const awayName = isFixture ? event.away_squad_name : (event.opponent || 'Opponent')
@@ -238,16 +463,31 @@ function LiveMatch() {
     setLogging(true)
     setError('')
     setHint('')
+    const fullBody = { minute: clockMinute, ...body }
     try {
-      await apiRequest(`${apiPrefix}/${entityId}/logs`, {
+      const created = await apiRequest(`${apiPrefix}/${entityId}/logs`, {
         method: 'POST',
-        body: { minute: clockMinute, ...body },
+        body: fullBody,
         getToken,
       })
       setFlow(null)
+      // Show the row straight away; the reload below swaps it for the
+      // server's copy and the dedupe effect retires the mirror.
+      if (created?.id != null) {
+        setPendingCreates((prev) => [...prev, created])
+      }
       await loadDetail()
     } catch (err) {
-      setError(err.message)
+      if (isRetryableError(err)) {
+        // Offline (or the server is unreachable): queue the entry with a
+        // client id so a replay can never double-log it, and put it on the
+        // timeline now — the score and ratings move immediately.
+        queueLog(fullBody)
+        setFlow(null)
+        setHint('Saved on this device — the timeline is already updated; it will sync automatically.')
+      } else {
+        setError(err.message)
+      }
     } finally {
       setLogging(false)
     }
@@ -258,11 +498,12 @@ function LiveMatch() {
     setSavingLineup(true)
     setError('')
     try {
-      await apiRequest(`${apiPrefix}/${entityId}/lineup`, {
+      const saved = await apiRequest(`${apiPrefix}/${entityId}/lineup`, {
         method: 'PUT',
         body: payload,
         getToken,
       })
+      setStartBlocked(saved?.startBlocked || null)
       await loadDetail()
     } catch (err) {
       setError(err.message)
@@ -367,7 +608,7 @@ function LiveMatch() {
     }
   }
 
-  async function handleUndo(logId) {
+  async function handleUndo(entry) {
     const answer = await confirm({
       title: 'Undo log entry',
       message: 'Undo this log entry? It is removed from the timeline and the match stats.',
@@ -375,11 +616,45 @@ function LiveMatch() {
       tone: 'danger',
     })
     if (!answer) return
+
+    // A string id means the row is still only in the queue: undoing it is a
+    // local decision — the queued create simply never goes out.
+    if (typeof entry.id === 'string') {
+      removeQueuedCreate(matchKey, entry.id)
+      setPendingCreates((prev) => prev.filter(
+        (row) => row.id !== entry.id && row.related_log_id !== entry.id
+      ))
+      setPendingCount(queueLength(matchKey))
+      setHint('Entry removed — it had not left this device yet.')
+      return
+    }
+
+    const logId = entry.id
+    // Hide it here and now; the server copy goes with the DELETE below (or
+    // with the queued one when offline).
+    setPendingRemovals((prev) => new Set(prev).add(logId))
     try {
       await apiRequest(`${apiPrefix}/${entityId}/logs/${logId}`, { method: 'DELETE', getToken })
+      setPendingRemovals((prev) => {
+        const next = new Set(prev)
+        next.delete(logId)
+        return next
+      })
       await loadDetail()
     } catch (err) {
-      setError(err.message)
+      if (isRetryableError(err)) {
+        enqueue(matchKey, { type: 'undo', path: `${apiPrefix}/${entityId}/logs/${logId}`, method: 'DELETE' })
+        setPendingCount(queueLength(matchKey))
+        setHint('No connection — the entry is hidden here and the undo will sync automatically.')
+      } else {
+        // Already gone server-side — either way it should not stay on screen.
+        setPendingRemovals((prev) => {
+          const next = new Set(prev)
+          next.delete(logId)
+          return next
+        })
+        await loadDetail()
+      }
     }
   }
 
@@ -405,22 +680,48 @@ function LiveMatch() {
     if (!editForm) return
     setEditSaving(true)
     setError('')
+    const body = {
+      athlete_id: editForm.for !== 'opponent' ? Number(editForm.for) : null,
+      action_type: editForm.action_type,
+      is_scoring: editForm.is_scoring,
+      minute: editForm.minute !== '' ? Number(editForm.minute) : null,
+      notes: editForm.notes.trim() || null,
+    }
+
+    // Editing a row that hasn't synced yet: the queued create carries the
+    // newer values out when it goes — there is no server id to PATCH.
+    if (typeof editingEntryId === 'string') {
+      const queued = findQueuedCreate(matchKey, editingEntryId)
+      if (queued) {
+        const mergedBody = { ...queued.body, ...body }
+        if (mergedBody.action_type !== 'substitution') delete mergedBody.substitute_athlete_id
+        if (mergedBody.action_type !== 'goal') delete mergedBody.assist_athlete_id
+        updateQueuedCreate(matchKey, editingEntryId, mergedBody)
+        setPendingCreates((prev) => prev.map((row) => (
+          row.id === editingEntryId ? { ...row, ...body } : row
+        )))
+        setHint('Edit applied to the entry waiting to sync.')
+      }
+      closeEdit()
+      setEditSaving(false)
+      return
+    }
+
+    const path = `${apiPrefix}/${entityId}/logs/${editingEntryId}`
     try {
-      await apiRequest(`${apiPrefix}/${entityId}/logs/${editingEntryId}`, {
-        method: 'PATCH',
-        body: {
-          athlete_id: editForm.for !== 'opponent' ? Number(editForm.for) : null,
-          action_type: editForm.action_type,
-          is_scoring: editForm.is_scoring,
-          minute: editForm.minute !== '' ? Number(editForm.minute) : null,
-          notes: editForm.notes.trim() || null,
-        },
-        getToken,
-      })
+      await apiRequest(path, { method: 'PATCH', body, getToken })
       closeEdit()
       await loadDetail()
     } catch (err) {
-      setError(err.message)
+      if (isRetryableError(err)) {
+        enqueue(matchKey, { type: 'edit', path, method: 'PATCH', body })
+        setPendingEdits((prev) => ({ ...prev, [editingEntryId]: body }))
+        setPendingCount(queueLength(matchKey))
+        setHint('No connection — the edit is shown here and will sync automatically.')
+        closeEdit()
+      } else {
+        setError(err.message)
+      }
     } finally {
       setEditSaving(false)
     }
@@ -466,9 +767,27 @@ function LiveMatch() {
   // plus the goals the simulation has produced. The server's own result is
   // ignored until the closing reload, otherwise the three-second poll would
   // count every goal a second time.
-  const displayResult = simBase
+  const baseResult = simBase
     ? { home: simBase.home + simScore.home, away: simBase.away + simScore.away }
     : result
+  // Queued scoring entries count immediately too — the server's result only
+  // becomes authoritative for them once the queue empties and reloads.
+  const awayIds = isFixture ? new Set(awayRoster.map((a) => a.id)) : null
+  const pendingScore = pendingCreates.reduce(
+    (acc, entry) => {
+      if (!entry.is_scoring || pendingRemovals.has(entry.id)) return acc
+      const side = isFixture
+        ? (entry.athlete_id != null && awayIds.has(entry.athlete_id) ? 'away' : 'home')
+        : (entry.athlete_id == null ? 'away' : 'home')
+      acc[side] += entry.value ?? 1
+      return acc
+    },
+    { home: 0, away: 0 }
+  )
+  const displayResult = {
+    home: baseResult.home + pendingScore.home,
+    away: baseResult.away + pendingScore.away,
+  }
   const displayMinute = simBusy ? simMinute : clockMinute
 
   const ratingsSources = (() => {
@@ -677,9 +996,13 @@ function LiveMatch() {
         <Layout>
           {header}
           {error && <div className="roster-error">{error}</div>}
-          <div className="live-note">
-            Lineups are set. The match starts at kickoff — come back then to log actions.
-          </div>
+          {blockedNote ? (
+            <div className="live-note live-note-warn">{blockedNote}</div>
+          ) : (
+            <div className="live-note">
+              Lineups are set. The match starts at kickoff — come back then to log actions.
+            </div>
+          )}
           <Pitch homePlayers={withRatings(homeSide.starters)} awayPlayers={[]} />
         </Layout>
       )
@@ -777,6 +1100,26 @@ function LiveMatch() {
     <Layout>
       {header}
 
+      {(!isOnline || pendingCount > 0) && (
+        <div className="offline-banner" role="status">
+          <span>
+            {!isOnline
+              ? `You're offline — logging still works and the timeline updates straight away.${pendingCount > 0 ? ` (${pendingCount} queued)` : ''}`
+              : syncing
+                ? 'Reconnected — syncing queued entries...'
+                : `${pendingCount} entr${pendingCount === 1 ? 'y' : 'ies'} queued, waiting to sync.`}
+          </span>
+          {isOnline && pendingCount > 0 && !syncing && (
+            <button type="button" className="btn btn-ghost offline-sync-btn" onClick={trySync}>
+              Sync now
+            </button>
+          )}
+        </div>
+      )}
+
+      {syncNote && <div className="live-note">{syncNote}</div>}
+      {hint && !flow && <div className="live-note">{hint}</div>}
+      {blockedNote && !flow && <div className="live-note live-note-warn">{blockedNote}</div>}
       {error && <div className="roster-error">{error}</div>}
 
       <div className="live-scoreboard">
@@ -994,7 +1337,7 @@ function LiveMatch() {
                 : entry.action_type.includes('penalty')
                   ? 'live-timeline-minute--penalty'
                   : ''
-            const isNew = newEntryIds.has(entry.id) || simLogIds.has(entry.id)
+            const isNew = newEntryIds.has(entry.id) || simLogIds.has(entry.id) || Boolean(entry._pending)
             const assist = entry.action_type === 'goal' ? assistForGoal(mergedTimeline, entry.id) : null
             const subOnId = entry.action_type === 'substitution' ? parseSubstitutionNotes(entry.notes) : null
             return (
@@ -1006,6 +1349,7 @@ function LiveMatch() {
                 <div className="live-timeline-body">
                   <span className="live-timeline-action">{formatActionType(entry.action_type)}</span>
                   <span className="live-timeline-who">{entry.athlete_name || nameById.get(entry.athlete_id) || 'Opponent'}</span>
+                  {entry._pending && <span className="live-timeline-pending">queued</span>}
                   {assist && (
                     <span className="live-timeline-detail">
                       assist: {assist.athlete_name || nameById.get(assist.athlete_id) || '—'}
@@ -1022,7 +1366,7 @@ function LiveMatch() {
                     <button type="button" className="btn btn-ghost" onClick={() => openEdit(entry)}>
                       Edit
                     </button>
-                    <button type="button" className="btn btn-danger" onClick={() => handleUndo(entry.id)}>
+                    <button type="button" className="btn btn-danger" onClick={() => handleUndo(entry)}>
                       Undo
                     </button>
                   </div>
