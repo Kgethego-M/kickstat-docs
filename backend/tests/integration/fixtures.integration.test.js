@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import request from 'supertest'
 import express from 'express'
-import { pool, resetDatabase } from './setup'
+import { pool, resetDatabase, seedAvailability } from './setup'
 
 import eventsRouter from '../../src/routes/events'
 import fixturesRouter from '../../src/routes/fixtures'
@@ -97,6 +97,11 @@ async function setFixtureLineup(fixtureId, { homeStarterIds, awayStarterIds } = 
   const detail = await request(app)
     .get(`/api/fixtures/${fixtureId}`)
     .set('x-test-clerk-user-id', 'test_clerk_user')
+
+  // The availability gate reads the home squad's RSVPs on the league event
+  // before a fixture may go live; mark them all available so the XI save
+  // starts it as it always did.
+  await seedAvailability(detail.body.fixture.event_id, detail.body.rosters.home)
 
   const build = (roster, side, starterIds) => roster.map((a, i) => {
     const isStarter = starterIds ? starterIds.includes(a.id) : i < 11

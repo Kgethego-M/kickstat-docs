@@ -7,14 +7,27 @@ import './WeatherWidget.css'
 // US18 — Venue Weather Forecast.
 // `location` is a free-text venue string (from the event's `location`
 // field, or whatever the coach has typed so far in the create form).
+// `latitude`/`longitude` are the optional map pin from the venue editor —
+// when present the forecast centres on the exact pitch instead of
+// re-geocoding the place name.
 // `compact` renders a smaller inline version for use inside a form,
 // versus the fuller card used on the event detail page.
-export default function WeatherWidget({ location, compact = false }) {
+function toCoord(value) {
+  if (value === null || value === undefined || value === '') return null
+  const num = Number(value)
+  return Number.isFinite(num) ? num : null
+}
+
+export default function WeatherWidget({ location, latitude, longitude, compact = false }) {
   const { getToken } = useAuth()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const debounceRef = useRef(null)
+
+  const lat = toCoord(latitude)
+  const lng = toCoord(longitude)
+  const hasPin = lat !== null && lng !== null
 
   useEffect(() => {
     const trimmed = (location || '').trim()
@@ -23,7 +36,7 @@ export default function WeatherWidget({ location, compact = false }) {
       clearTimeout(debounceRef.current)
     }
 
-    if (!trimmed) {
+    if (!trimmed && !hasPin) {
       setData(null)
       setError('')
       setLoading(false)
@@ -35,7 +48,13 @@ export default function WeatherWidget({ location, compact = false }) {
       setLoading(true)
       setError('')
       try {
-        const result = await apiRequest(`/api/weather?location=${encodeURIComponent(trimmed)}`, {
+        const params = new URLSearchParams()
+        if (trimmed) params.set('location', trimmed)
+        if (hasPin) {
+          params.set('lat', String(lat))
+          params.set('lng', String(lng))
+        }
+        const result = await apiRequest(`/api/weather?${params.toString()}`, {
           getToken,
         })
         setData(result)
@@ -48,9 +67,9 @@ export default function WeatherWidget({ location, compact = false }) {
     }, 500)
 
     return () => clearTimeout(debounceRef.current)
-  }, [location, getToken])
+  }, [location, lat, lng, hasPin, getToken])
 
-  if (!(location || '').trim()) {
+  if (!(location || '').trim() && !hasPin) {
     return null
   }
 

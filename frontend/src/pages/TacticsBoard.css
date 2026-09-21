@@ -280,6 +280,17 @@
   color: var(--color-ink);
 }
 
+.tactics-save-error {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #dc2626;
+}
+
 .tactics-modal label {
   display: block;
   margin-bottom: 16px;

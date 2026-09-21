@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, beforeEach, afterEach, afterAll } from 'vitest'
 import request from 'supertest'
 import express from 'express'
-import { pool, resetDatabase, seedCoach } from './setup'
+import { pool, resetDatabase, seedCoach, seedAvailability } from './setup'
 
 import eventsRouter from '../../src/routes/events'
 import fixturesRouter from '../../src/routes/fixtures'
@@ -121,6 +121,10 @@ async function createLeague({ homeNameFor } = {}) {
   const detail = await request(app).get(`/api/events/${eventId}`).set(COACH_HEADER, COACH)
   const creatorSquadId = detail.body.teams.find((t) => t.is_mine).squad_id
   const homeFixture = detail.body.fixtures.find((f) => f.home_squad_id === creatorSquadId)
+
+  // The availability gate reads the home squad's RSVPs on the league event;
+  // a fully available squad keeps fixtures starting as before.
+  await seedAvailability(eventId, homeAthletes)
 
   return { eventId, fixtureId: homeFixture.id, homeAthletes, awayAthletes }
 }
@@ -486,6 +490,9 @@ describe('simple event simulation', () => {
   test('simulates against a generic opponent and replays with unassigned opponent actions', async () => {
     const athletes = await seedRoster(squadId)
     const event = await createSimpleEvent()
+    // Availability gate: enough players marked available for the XI save to
+    // start the match, exactly as a real squad would have RSVP'd.
+    await seedAvailability(event.id, athletes)
     await setEventLineup(event.id, athletes)
 
     const script = await simulateEvent(event.id)

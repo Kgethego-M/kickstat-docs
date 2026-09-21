@@ -1,6 +1,6 @@
 const { Router } = require('express')
 const { requireAuth, getAuth } = require('../middleware/auth')
-const { pool } = require('../db')
+const pool = require('../db')
 const { getOwnedSquadId } = require('./_squad')
 
 const router = Router()
@@ -19,7 +19,7 @@ router.get('/', requireAuth(), async (req, res) => {
     res.json(result.rows)
   } catch (err) {
     console.error('GET /api/tactics error:', err)
-    res.status(500).json({ error: 'Failed to load tactics' })
+    res.status(500).json({ error: `Failed to load tactics: ${err.message}` })
   }
 })
 
@@ -62,7 +62,7 @@ router.post('/', requireAuth(), async (req, res) => {
     res.status(201).json(result.rows[0])
   } catch (err) {
     console.error('POST /api/tactics error:', err)
-    res.status(500).json({ error: 'Failed to create tactic' })
+    res.status(500).json({ error: `Failed to create tactic: ${err.message}` })
   }
 })
 

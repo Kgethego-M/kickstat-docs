@@ -53,4 +53,19 @@ async function seedCoach(clerkId = 'test_clerk_user') {
   return { userId, squadId: squadResult.rows[0].id }
 }
 
-module.exports = { pool, resetDatabase, seedCoach }
+// Marks athletes as available for an event — the rows the Saturday
+// availability gate reads before a match may go live. Tests that start a
+// match (via PATCH, a lineup save, or the auto-start sweep) call this with
+// enough players to clear the squad's minimum.
+async function seedAvailability(eventId, athletes, status = 'available') {
+  for (const athlete of athletes) {
+    await pool.query(
+      `INSERT INTO event_rsvps (event_id, athlete_id, status)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (event_id, athlete_id) DO UPDATE SET status = EXCLUDED.status`,
+      [eventId, athlete.id, status]
+    )
+  }
+}
+
+module.exports = { pool, resetDatabase, seedCoach, seedAvailability }

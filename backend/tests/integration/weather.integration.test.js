@@ -60,6 +60,41 @@ describe('US18 — venue weather forecast', () => {
     expect(res.status).toBe(400)
   })
 
+  test('a pinned venue map point skips geocoding and keeps the venue name', async () => {
+    const res = await request(app)
+      .get('/api/weather')
+      .query({ location: 'Main Oval', lat: -26.2041, lng: 28.0473 })
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+
+    // If Open-Meteo is unreachable, skip rather than fail.
+    if (res.status === 503) {
+      console.warn('Open-Meteo unavailable in CI — skipping pinned weather test')
+      return
+    }
+
+    expect(res.status).toBe(200)
+    // The name the coach saved, not the geocoder's nearest town.
+    expect(res.body.resolvedLocation).toBe('Main Oval')
+    expect(res.body.latitude).toBeCloseTo(-26.2041, 4)
+    expect(res.body.longitude).toBeCloseTo(28.0473, 4)
+    expect(typeof res.body.current.temperatureC).toBe('number')
+  })
+
+  test('coordinates alone still return a forecast', async () => {
+    const res = await request(app)
+      .get('/api/weather')
+      .query({ lat: -26.2041, lng: 28.0473 })
+      .set('x-test-clerk-user-id', 'test_clerk_user')
+
+    if (res.status === 503) {
+      console.warn('Open-Meteo unavailable in CI — skipping pinned weather test')
+      return
+    }
+
+    expect(res.status).toBe(200)
+    expect(res.body.resolvedLocation).toBe('Pinned location')
+  })
+
   test('returns 404 for a location that cannot be resolved', async () => {
     const res = await request(app)
       .get('/api/weather')

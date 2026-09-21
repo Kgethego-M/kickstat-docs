@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import request from 'supertest'
 import express from 'express'
-import { pool, resetDatabase, seedCoach } from './setup'
+import { pool, resetDatabase, seedCoach, seedAvailability } from './setup'
 
 
 import athletesRouter from '../../src/routes/athletes'
@@ -58,7 +58,9 @@ describe('US17 (integration) — per-athlete summary, aggregated across real eve
     )
 
     // Live logging is lineup-gated: name the starting XI on each event first.
+    // The availability gate also needs the squad's only player confirmed.
     for (const event of [event1.rows[0], event2.rows[0]]) {
+      await seedAvailability(event.id, [athlete])
       const lineupRes = await request(app)
         .put(`/api/events/${event.id}/lineup`)
         .send({
