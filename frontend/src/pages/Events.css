@@ -388,6 +388,21 @@
   gap: 5px;
 }
 
+/* Overlaps another event on the calendar (advisory). */
+.evt-tag-clash {
+  background: rgba(214, 158, 46, 0.14);
+  color: #b7791f;
+}
+
+/* RSVP tally: in / out [/ maybe]. */
+.evt-rsvp {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2f855a;
+}
+
 .evt-actions {
   display: flex;
   align-items: center;
