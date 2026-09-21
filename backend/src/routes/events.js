@@ -240,6 +240,38 @@ async function loadEventWithAccess(pool, eventId, squadId) {
   return eventResult.rows[0] || null;
 }
 
+// Finds this squad's other non-cancelled events whose scheduled window
+// overlaps [timestamp, timestamp + durationMinutes). Used to flag clashes
+// on the calendar without blocking creation/edits — a coach may genuinely
+// need to double-book (e.g. an assistant covering one while they run the
+// other), so this is advisory, not a hard rule.
+async function findClashes(pool, squadId, timestamp, durationMinutes, excludeEventId = null) {
+  if (!timestamp) return [];
+  const duration = durationMinutes || 90;
+
+  const result = await pool.query(
+    `SELECT id, title, opponent, event_date, duration_minutes, location, format
+     FROM events
+     WHERE squad_id = $1
+       AND status != 'cancelled'
+       AND ($2::integer IS NULL OR id != $2)
+       AND event_date < ($3::timestamp + ($4 || ' minutes')::interval)
+       AND (event_date + (COALESCE(duration_minutes, 90) || ' minutes')::interval) > $3::timestamp
+     ORDER BY event_date`,
+    [squadId, excludeEventId, timestamp, duration]
+  );
+
+  return result.rows;
+}
+
+// Resolves the athlete row linked to the logged-in user's account, if any
+// (only athletes accepted via invite have one). Used by the RSVP "mine"
+// endpoint so an athlete can only ever respond for themselves.
+async function getAthleteIdForUser(pool, userId) {
+  const result = await pool.query('SELECT id FROM athletes WHERE user_id = $1', [userId]);
+  return result.rows[0]?.id || null;
+}
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
@@ -368,7 +400,9 @@ router.post('/', requireAuth(), async (req, res) => {
       event.team_count = 1;
     }
 
-    res.status(201).json(event);
+    const clashes = await findClashes(pool, squadId, timestamp, event.duration_minutes, event.id);
+
+    res.status(201).json({ ...event, clashes });
   } catch (err) {
     console.error('Error creating event:', err.message);
     res.status(500).json({ error: 'Server error' });
@@ -468,9 +502,32 @@ router.patch('/:id', requireAuth(), async (req, res) => {
       [title, opponent, type || event_type || null, timestamp, location, status, duration_minutes ? Number(duration_minutes) : null, req.params.id]
     );
 
-    res.json(result.rows[0]);
+    const updated = result.rows[0];
+    const clashes = await findClashes(pool, squadId, updated.event_date, updated.duration_minutes, updated.id);
+
+    res.json({ ...updated, clashes });
   } catch (err) {
     console.error('Error updating event:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/events/:id/clashes — re-check clashes for an existing event
+// (e.g. after another event on the calendar changes) without editing it.
+router.get('/:id/clashes', requireAuth(), async (req, res) => {
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const event = await loadEventWithAccess(pool, req.params.id, squadId);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const clashes = await findClashes(pool, squadId, event.event_date, event.duration_minutes, event.id);
+    res.json(clashes);
+  } catch (err) {
+    console.error('Error checking clashes:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1033,6 +1090,127 @@ router.delete('/:id/logs/:logId', requireAuth(), async (req, res) => {
     res.sendStatus(204);
   } catch (err) {
     console.error('Error undoing log entry:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ---- Athlete availability / RSVPs ----
+
+// GET /api/events/:id/rsvps — every athlete in the squad with their current
+// response (defaults to 'pending' for anyone who hasn't answered yet).
+router.get('/:id/rsvps', requireAuth(), async (req, res) => {
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const event = await loadEventWithAccess(pool, req.params.id, squadId);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const result = await pool.query(
+      `SELECT a.id AS athlete_id, a.name, a.position,
+              COALESCE(r.status, 'pending') AS status,
+              r.note, r.responded_at
+       FROM athletes a
+       LEFT JOIN event_rsvps r ON r.athlete_id = a.id AND r.event_id = $1
+       WHERE a.squad_id = $2
+       ORDER BY a.name`,
+      [req.params.id, squadId]
+    );
+
+    const summary = result.rows.reduce(
+      (acc, row) => {
+        acc[row.status] = (acc[row.status] || 0) + 1;
+        return acc;
+      },
+      { pending: 0, available: 0, unavailable: 0, maybe: 0 }
+    );
+
+    res.json({ rsvps: result.rows, summary });
+  } catch (err) {
+    console.error('Error fetching RSVPs:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/events/:id/rsvps/mine — the logged-in athlete sets their own
+// availability for this event.
+router.put('/:id/rsvps/mine', requireAuth(), async (req, res) => {
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const userId = await getOrCreateUserId(pool, clerkUserId);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const athleteId = await getAthleteIdForUser(pool, userId);
+    if (!athleteId) {
+      return res.status(403).json({ error: 'Your account is not linked to an athlete on this roster' });
+    }
+
+    const event = await loadEventWithAccess(pool, req.params.id, squadId);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const { status, note } = req.body;
+    if (!['available', 'unavailable', 'maybe'].includes(status)) {
+      return res.status(400).json({ error: "status must be 'available', 'unavailable', or 'maybe'" });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO event_rsvps (event_id, athlete_id, status, note, responded_by, responded_at)
+       VALUES ($1, $2, $3, $4, $5, now())
+       ON CONFLICT (event_id, athlete_id)
+       DO UPDATE SET status = $3, note = $4, responded_by = $5, responded_at = now(), updated_at = now()
+       RETURNING *`,
+      [req.params.id, athleteId, status, note || null, userId]
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error setting RSVP:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/events/:id/rsvps/:athleteId — a coach or assistant records an
+// athlete's availability on their behalf (e.g. confirmed by phone/WhatsApp).
+router.put('/:id/rsvps/:athleteId', requireAuth(), async (req, res) => {
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const userId = await getOrCreateUserId(pool, clerkUserId);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const event = await loadEventWithAccess(pool, req.params.id, squadId);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const athleteCheck = await pool.query(
+      'SELECT id FROM athletes WHERE id = $1 AND squad_id = $2',
+      [req.params.athleteId, squadId]
+    );
+    if (athleteCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Athlete not found in this squad' });
+    }
+
+    const { status, note } = req.body;
+    if (!['available', 'unavailable', 'maybe'].includes(status)) {
+      return res.status(400).json({ error: "status must be 'available', 'unavailable', or 'maybe'" });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO event_rsvps (event_id, athlete_id, status, note, responded_by, responded_at)
+       VALUES ($1, $2, $3, $4, $5, now())
+       ON CONFLICT (event_id, athlete_id)
+       DO UPDATE SET status = $3, note = $4, responded_by = $5, responded_at = now(), updated_at = now()
+       RETURNING *`,
+      [req.params.id, req.params.athleteId, status, note || null, userId]
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error setting RSVP:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });

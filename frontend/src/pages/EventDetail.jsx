@@ -7,6 +7,8 @@ import { apiRequest } from '../lib/api'
 import { ACTION_TYPES, formatActionType } from '../lib/actions'
 import { useConfirm } from '../lib/confirm'
 import WeatherWidget from '../components/WeatherWidget'
+import ClashBanner from '../components/ClashBanner'
+import RsvpPanel from '../components/RsvpPanel'
 import { useCountUp } from '../lib/useCountUp'
 import './EventDetail.css'
 
@@ -279,6 +281,9 @@ function SimpleEventDetail({ detail, athletes, id, getToken, onChange }) {
         </form>
       )}
 
+      <ClashBanner eventId={id} getToken={getToken} />
+      <RsvpPanel eventId={id} getToken={getToken} />
+
       {event.location && <WeatherWidget location={event.location} />}
 
       {error && <div className="roster-error">{error}</div>}
@@ -494,6 +499,8 @@ function LeagueDetail({ detail, id, getToken, onChange }) {
           </button>
         )}
       </header>
+
+      <ClashBanner eventId={id} getToken={getToken} />
 
       {event.location && <WeatherWidget location={event.location} />}
 

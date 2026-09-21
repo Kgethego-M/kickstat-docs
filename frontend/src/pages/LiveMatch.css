@@ -738,3 +738,13 @@
     max-height: 300px;
   }
 }
+
+.offline-banner {
+  background: rgba(214, 158, 46, 0.12);
+  border: 1px solid rgba(214, 158, 46, 0.4);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: #d69e2e;
+}

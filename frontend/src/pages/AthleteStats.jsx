@@ -7,7 +7,19 @@ import { apiRequest } from '../lib/api'
 import { formatActionType } from '../lib/actions'
 import { useConfirm } from '../lib/confirm'
 import { useCountUp } from '../lib/useCountUp'
+import StatOverrideControl from '../components/StatOverrideControl'
 import './AthleteStats.css'
+
+// Maps a stat card's display label to the stat_key the backend's override
+// endpoint understands. Cards not listed here (BMI, G+A/match, GK
+// estimates) aren't directly-logged counts, so they can't be overridden.
+const OVERRIDE_STAT_KEY = {
+  Appearances: 'appearances',
+  Goals: 'goals',
+  Assists: 'assists',
+  'Yellow cards': 'yellowCards',
+  'Red cards': 'redCards',
+}
 
 const emptyInjuryForm = {
   description: '',
@@ -545,7 +557,7 @@ function AthleteStats() {
     )
   }
 
-  const { athlete, injuries, currentInjury, bmi } = data
+  const { athlete, injuries, currentInjury, bmi, overrides } = data
   const seed = Number(athlete.id) || 1
   const group = positionGroup(athlete.position)
 
@@ -646,15 +658,32 @@ function AthleteStats() {
               {' · estimate'}
             </span>
           </div>
-          {statCards.map((card) => (
-            <div key={card.label} className={`ath-stat-card${card.accent ? ' ath-stat-card-accent' : ''}`}>
-              <span className="ath-stat-label">{card.label}</span>
-              <span className={`ath-stat-value${card.dark ? ' ath-stat-value-dark' : ''}`}>
-                <StatNumber value={card.value} suffix={card.suffix || ''} />
-              </span>
-              <span className="ath-stat-note">{card.note || `in this ${period === 'season' ? 'season' : period.replace('d', ' days')}`}</span>
-            </div>
-          ))}
+          {statCards.map((card) => {
+            // Overrides are lifetime corrections computed on the full log,
+            // so they only apply to (and are only editable from) the
+            // full-season view — a 7d/30d window is a different number.
+            const statKey = OVERRIDE_STAT_KEY[card.label]
+            const override = statKey ? overrides?.[statKey] : null
+            const canOverride = isCoach && period === 'season' && statKey
+            return (
+              <div key={card.label} className={`ath-stat-card${card.accent ? ' ath-stat-card-accent' : ''}`}>
+                <span className="ath-stat-label">{card.label}</span>
+                <span className={`ath-stat-value${card.dark ? ' ath-stat-value-dark' : ''}`}>
+                  <StatNumber value={card.value} suffix={card.suffix || ''} />
+                </span>
+                <span className="ath-stat-note">{card.note || `in this ${period === 'season' ? 'season' : period.replace('d', ' days')}`}</span>
+                {canOverride && (
+                  <StatOverrideControl
+                    athleteId={id}
+                    statKey={statKey}
+                    override={override}
+                    getToken={getToken}
+                    onChange={load}
+                  />
+                )}
+              </div>
+            )
+          })}
         </div>
 
         <div className="ath-charts-grid">

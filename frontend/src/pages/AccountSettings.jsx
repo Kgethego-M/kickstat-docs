@@ -8,6 +8,7 @@ import './AccountSettings.css'
 function AccountSettings() {
   const { getToken, signOut } = useAuth()
   const [teamName, setTeamName] = useState('')
+  const [squad, setSquad] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -18,12 +19,16 @@ function AccountSettings() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
+  const [publicLinkSaving, setPublicLinkSaving] = useState(false)
+  const [publicLinkCopied, setPublicLinkCopied] = useState(false)
+
   const loadSquad = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const squad = await apiRequest('/api/squads/mine', { getToken })
-      setTeamName(squad.name || '')
+      const data = await apiRequest('/api/squads/mine', { getToken })
+      setTeamName(data.name || '')
+      setSquad(data)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -58,6 +63,40 @@ function AccountSettings() {
     } finally {
       setSaving(false)
     }
+  }
+
+  async function handleEnablePublicLink() {
+    setPublicLinkSaving(true)
+    setError('')
+    try {
+      const updated = await apiRequest('/api/squads/mine/public-link', { method: 'POST', getToken })
+      setSquad(updated)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setPublicLinkSaving(false)
+    }
+  }
+
+  async function handleDisablePublicLink() {
+    setPublicLinkSaving(true)
+    setError('')
+    try {
+      const updated = await apiRequest('/api/squads/mine/public-link', { method: 'DELETE', getToken })
+      setSquad(updated)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setPublicLinkSaving(false)
+    }
+  }
+
+  function copyPublicLink() {
+    const url = `${window.location.origin}/public/${squad.public_token}`
+    navigator.clipboard?.writeText(url).then(() => {
+      setPublicLinkCopied(true)
+      setTimeout(() => setPublicLinkCopied(false), 2000)
+    })
   }
 
   async function handleDeleteAccount(e) {
@@ -113,6 +152,47 @@ function AccountSettings() {
         )}
         {error && <div className="roster-error">{error}</div>}
       </form>
+
+      {squad && (
+        <div className="dashboard-card" style={{ marginTop: '1.5rem' }}>
+          <h3>Public squad page</h3>
+          <p>Share a read-only page of your roster, stats, and recent results with anyone — no login required.</p>
+
+          {squad.is_public && squad.public_token ? (
+            <>
+              <div className="roster-form-grid" style={{ marginTop: '0.75rem' }}>
+                <label className="roster-form-wide">
+                  Public link
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}/public/${squad.public_token}`}
+                    onFocus={(e) => e.target.select()}
+                  />
+                </label>
+              </div>
+              <div className="roster-form-actions" style={{ marginTop: '0.75rem' }}>
+                <button type="button" className="btn btn-ghost" onClick={copyPublicLink}>
+                  {publicLinkCopied ? 'Copied!' : 'Copy link'}
+                </button>
+                <button type="button" className="btn btn-danger" disabled={publicLinkSaving} onClick={handleDisablePublicLink}>
+                  {publicLinkSaving ? 'Saving...' : 'Turn off public page'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-gold"
+              style={{ marginTop: '0.75rem' }}
+              disabled={publicLinkSaving}
+              onClick={handleEnablePublicLink}
+            >
+              {publicLinkSaving ? 'Creating link...' : 'Get shareable link'}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="settings-panel">
         <UserProfile />

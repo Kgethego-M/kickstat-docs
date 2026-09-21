@@ -18,6 +18,7 @@ const weatherRouter = require('./routes/weather');
 const injuriesRouter = require('./routes/injuries');
 const compareRouter = require('./routes/compare');
 const tacticsRouter = require('./routes/tactics');
+const publicRouter = require('./routes/public');
 const { sendEventReminders } = require('./lib/reminders');
 
 const app = express();
@@ -39,6 +40,9 @@ app.use(cors({
 // downscaled in the browser) fit without hitting a 413.
 app.use(express.json({ limit: '1mb' }));
 app.use('/api/dashboard', dashboardRouter);
+// No auth middleware — the token in the URL is the access control (see
+// public.js). Mounted before clerkMiddleware like /api/dashboard above.
+app.use('/api/public', publicRouter);
 app.use(clerkMiddleware());
 
 // Moved here from before `const app = express()` — that's what was crashing
