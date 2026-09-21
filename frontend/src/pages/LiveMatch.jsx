@@ -6,6 +6,7 @@ import Loader from '../components/Loader'
 import Pitch from '../components/Pitch'
 import LineupWizard from '../components/LineupWizard'
 import { apiRequest } from '../lib/api'
+import { enqueue, flushQueue, queueLength, onConnectivityChange } from '../lib/offlineQueue'
 import { ACTION_TYPES, QUICK_ACTIONS, formatActionType } from '../lib/actions'
 import { useConfirm } from '../lib/confirm'
 import { FULL_TIME_MINUTE, runSimulation } from '../lib/simulation'
@@ -152,6 +153,55 @@ function LiveMatch() {
   const [editSaving, setEditSaving] = useState(false)
   const [endingFixture, setEndingFixture] = useState(false)
 
+  // --- Offline-first logging. ---
+  // matchKey namespaces the queue per event/fixture, so switching matches
+  // (or opening two on different devices) can't cross-contaminate queues.
+  const matchKey = `${apiPrefix}/${entityId}`
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [pendingCount, setPendingCount] = useState(() => queueLength(matchKey))
+  const [syncing, setSyncing] = useState(false)
+
+  const trySync = useCallback(async () => {
+    if (!navigator.onLine || syncing) return
+    setSyncing(true)
+    try {
+      await flushQueue(matchKey, apiRequest, getToken)
+      setPendingCount(queueLength(matchKey))
+      await loadDetail()
+    } finally {
+      setSyncing(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchKey, getToken])
+
+  useEffect(() => {
+    const handleChange = () => {
+      setIsOnline(navigator.onLine)
+      if (navigator.onLine) trySync()
+    }
+    const off = onConnectivityChange(handleChange)
+    // Also try once on mount, in case actions were queued in a previous
+    // session that ended (or crashed) before they could sync.
+    if (navigator.onLine && queueLength(matchKey) > 0) trySync()
+    return off
+  }, [matchKey, trySync])
+
+  // A dropped connection mid-match doesn't fire a browser 'offline' event
+  // if the wifi/data just goes flaky rather than fully off — so also retry
+  // periodically whenever something is still queued.
+  useEffect(() => {
+    if (pendingCount === 0) return undefined
+    const interval = setInterval(trySync, 15000)
+    return () => clearInterval(interval)
+  }, [pendingCount, trySync])
+
+  function isNetworkError(err) {
+    // apiRequest (lib/api.js) throws a plain Error with one of these two
+    // messages for a dropped/absent connection or a timed-out request —
+    // there's no typed network-error class to check against instead.
+    return !navigator.onLine || /could not reach the server|took too long to respond/i.test(err.message || '')
+  }
+
   // --- Match simulation (Quick Sim / Simulate Match). ---
   // The backend builds the script, weighted by EA FC ratings; this page replays
   // it through the normal log endpoint, so a simulated match is recorded
@@ -238,16 +288,24 @@ function LiveMatch() {
     setLogging(true)
     setError('')
     setHint('')
+    const fullBody = { minute: clockMinute, ...body }
     try {
       await apiRequest(`${apiPrefix}/${entityId}/logs`, {
         method: 'POST',
-        body: { minute: clockMinute, ...body },
+        body: fullBody,
         getToken,
       })
       setFlow(null)
       await loadDetail()
     } catch (err) {
-      setError(err.message)
+      if (isNetworkError(err)) {
+        enqueue(matchKey, { type: 'create', path: `${apiPrefix}/${entityId}/logs`, method: 'POST', body: fullBody })
+        setPendingCount(queueLength(matchKey))
+        setFlow(null)
+        setHint('No connection — entry saved on this device and will sync automatically.')
+      } else {
+        setError(err.message)
+      }
     } finally {
       setLogging(false)
     }
@@ -379,7 +437,13 @@ function LiveMatch() {
       await apiRequest(`${apiPrefix}/${entityId}/logs/${logId}`, { method: 'DELETE', getToken })
       await loadDetail()
     } catch (err) {
-      setError(err.message)
+      if (isNetworkError(err)) {
+        enqueue(matchKey, { type: 'undo', path: `${apiPrefix}/${entityId}/logs/${logId}`, method: 'DELETE', body: undefined })
+        setPendingCount(queueLength(matchKey))
+        setHint('No connection — undo saved on this device and will sync automatically.')
+      } else {
+        setError(err.message)
+      }
     }
   }
 
@@ -405,22 +469,27 @@ function LiveMatch() {
     if (!editForm) return
     setEditSaving(true)
     setError('')
+    const path = `${apiPrefix}/${entityId}/logs/${editingEntryId}`
+    const body = {
+      athlete_id: editForm.for !== 'opponent' ? Number(editForm.for) : null,
+      action_type: editForm.action_type,
+      is_scoring: editForm.is_scoring,
+      minute: editForm.minute !== '' ? Number(editForm.minute) : null,
+      notes: editForm.notes.trim() || null,
+    }
     try {
-      await apiRequest(`${apiPrefix}/${entityId}/logs/${editingEntryId}`, {
-        method: 'PATCH',
-        body: {
-          athlete_id: editForm.for !== 'opponent' ? Number(editForm.for) : null,
-          action_type: editForm.action_type,
-          is_scoring: editForm.is_scoring,
-          minute: editForm.minute !== '' ? Number(editForm.minute) : null,
-          notes: editForm.notes.trim() || null,
-        },
-        getToken,
-      })
+      await apiRequest(path, { method: 'PATCH', body, getToken })
       closeEdit()
       await loadDetail()
     } catch (err) {
-      setError(err.message)
+      if (isNetworkError(err)) {
+        enqueue(matchKey, { type: 'edit', path, method: 'PATCH', body })
+        setPendingCount(queueLength(matchKey))
+        setHint('No connection — edit saved on this device and will sync automatically.')
+        closeEdit()
+      } else {
+        setError(err.message)
+      }
     } finally {
       setEditSaving(false)
     }
@@ -776,6 +845,16 @@ function LiveMatch() {
   return (
     <Layout>
       {header}
+
+      {(!isOnline || pendingCount > 0) && (
+        <div className="offline-banner" role="status">
+          {!isOnline
+            ? `You're offline — logging still works and will sync automatically.${pendingCount > 0 ? ` (${pendingCount} entr${pendingCount === 1 ? 'y' : 'ies'} queued)` : ''}`
+            : syncing
+              ? 'Reconnected — syncing queued entries...'
+              : `${pendingCount} entr${pendingCount === 1 ? 'y' : 'ies'} queued and waiting to sync.`}
+        </div>
+      )}
 
       {error && <div className="roster-error">{error}</div>}
 

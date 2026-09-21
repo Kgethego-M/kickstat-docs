@@ -148,9 +148,32 @@ router.get('/:id/stats', requireAuth(), async (req, res) => {
       bmi = +(athlete.weight_kg / (heightM * heightM)).toFixed(1);
     }
 
+    // Manual corrections take precedence over the computed value for any
+    // stat a coach has overridden (e.g. a goal that was logged against the
+    // wrong player and can't easily be untangled from the log). The
+    // computed value is still returned alongside so the UI can show both.
+    const stats = { goals, assists, penalties, yellowCards, redCards, appearances };
+    const overridesResult = await pool.query(
+      'SELECT stat_key, override_value, note, updated_at FROM athlete_stat_overrides WHERE athlete_id = $1',
+      [req.params.id]
+    );
+    const overrides = {};
+    for (const row of overridesResult.rows) {
+      overrides[row.stat_key] = {
+        value: row.override_value,
+        note: row.note,
+        updatedAt: row.updated_at,
+        computedValue: stats[row.stat_key] ?? null,
+      };
+      if (Object.prototype.hasOwnProperty.call(stats, row.stat_key)) {
+        stats[row.stat_key] = row.override_value;
+      }
+    }
+
     res.json({
       athlete,
-      stats: { goals, assists, penalties, yellowCards, redCards, appearances },
+      stats,
+      overrides,
       logs,
       injuries,
       currentInjury,
@@ -159,6 +182,84 @@ router.get('/:id/stats', requireAuth(), async (req, res) => {
   } catch (err) {
     console.error('Error fetching athlete stats:', err.message);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Stat keys a coach is allowed to manually correct — matches the keys
+// returned in GET /:id/stats above.
+const OVERRIDABLE_STAT_KEYS = new Set([
+  'goals', 'assists', 'penalties', 'yellowCards', 'redCards', 'appearances',
+]);
+
+// PATCH /api/athletes/:id/stats/override — coach-only manual correction of
+// a single derived stat, e.g. when a log entry can't be cleanly fixed.
+router.patch('/:id/stats/override', requireAuth(), async (req, res) => {
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const userId = await getOrCreateUserId(pool, clerkUserId);
+    const squadId = await getOwnedSquadIdForCoach(pool, clerkUserId);
+
+    const athleteCheck = await pool.query(
+      'SELECT id FROM athletes WHERE id = $1 AND squad_id = $2',
+      [req.params.id, squadId]
+    );
+    if (athleteCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized to correct this athlete\'s stats' });
+    }
+
+    const { stat_key, value, note } = req.body;
+    if (!OVERRIDABLE_STAT_KEYS.has(stat_key)) {
+      return res.status(400).json({
+        error: `stat_key must be one of: ${[...OVERRIDABLE_STAT_KEYS].join(', ')}`,
+      });
+    }
+    const overrideValue = Number(value);
+    if (!Number.isInteger(overrideValue) || overrideValue < 0) {
+      return res.status(400).json({ error: 'value must be a non-negative whole number' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO athlete_stat_overrides (athlete_id, stat_key, override_value, note, set_by)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (athlete_id, stat_key)
+       DO UPDATE SET override_value = $3, note = $4, set_by = $5, updated_at = now()
+       RETURNING *`,
+      [req.params.id, stat_key, overrideValue, note || null, userId]
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error setting stat override:', err.message);
+    const status = err.status || 500;
+    res.status(status).json({ error: status === 403 ? err.message : 'Server error' });
+  }
+});
+
+// DELETE /api/athletes/:id/stats/override/:statKey — revert a stat back to
+// its computed value.
+router.delete('/:id/stats/override/:statKey', requireAuth(), async (req, res) => {
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadIdForCoach(pool, clerkUserId);
+
+    const athleteCheck = await pool.query(
+      'SELECT id FROM athletes WHERE id = $1 AND squad_id = $2',
+      [req.params.id, squadId]
+    );
+    if (athleteCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized to correct this athlete\'s stats' });
+    }
+
+    await pool.query(
+      'DELETE FROM athlete_stat_overrides WHERE athlete_id = $1 AND stat_key = $2',
+      [req.params.id, req.params.statKey]
+    );
+
+    res.sendStatus(204);
+  } catch (err) {
+    console.error('Error clearing stat override:', err.message);
+    const status = err.status || 500;
+    res.status(status).json({ error: status === 403 ? err.message : 'Server error' });
   }
 });
 

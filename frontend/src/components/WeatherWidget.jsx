@@ -100,6 +100,37 @@ export default function WeatherWidget({ location, compact = false }) {
           ))}
         </div>
       )}
+
+      {!compact && data.latitude && data.longitude && (
+        <VenueMap latitude={data.latitude} longitude={data.longitude} label={data.resolvedLocation} />
+      )}
+    </div>
+  )
+}
+
+// Small embedded venue map — uses OpenStreetMap's free public embed (no API
+// key or account needed), centered on the coordinates the weather lookup
+// already resolved above, so this adds no extra network request.
+function VenueMap({ latitude, longitude, label }) {
+  const delta = 0.01
+  const bbox = [
+    longitude - delta, latitude - delta,
+    longitude + delta, latitude + delta,
+  ].join('%2C')
+  const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitude}%2C${longitude}`
+  const largeMapUrl = `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=15/${latitude}/${longitude}`
+
+  return (
+    <div className="weather-widget-map">
+      <iframe
+        title={`Map of ${label || 'venue'}`}
+        src={src}
+        loading="lazy"
+        style={{ border: 0, width: '100%', height: '180px', borderRadius: '8px' }}
+      />
+      <a href={largeMapUrl} target="_blank" rel="noreferrer" className="weather-widget-map-link">
+        View larger map
+      </a>
     </div>
   )
 }
