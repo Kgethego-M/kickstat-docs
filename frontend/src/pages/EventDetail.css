@@ -15,6 +15,32 @@
   margin-top: 0.15rem;
 }
 
+/* Shown while a match is still short of the players it needs to kick off —
+   explains why Start live refuses before the coach presses it. */
+.event-availability-note {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--radius, 10px);
+  border: 1px solid rgba(224, 122, 122, 0.45);
+  background: rgba(224, 122, 122, 0.12);
+  font-size: 0.9rem;
+}
+
+.event-availability-note strong {
+  color: #e07a7a;
+}
+
+/* Matches the roster-form label styling for the map editor block. */
+.event-form-map-heading {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 13px;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+}
+
 .event-result {
   display: flex;
   align-items: center;

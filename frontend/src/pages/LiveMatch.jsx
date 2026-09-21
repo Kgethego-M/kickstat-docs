@@ -157,6 +157,9 @@ function LiveMatch() {
   const [hint, setHint] = useState('')
   const [logging, setLogging] = useState(false)
   const [savingLineup, setSavingLineup] = useState(false)
+  // Set when the XI is saved on a match that is due but short of available
+  // players: the server keeps the lineups but refuses to kick off.
+  const [startBlocked, setStartBlocked] = useState(null)
 
   const [editingEntryId, setEditingEntryId] = useState(null)
   const [editForm, setEditForm] = useState(null)
@@ -420,6 +423,13 @@ function LiveMatch() {
     : timeline
   const loggingOpen = canLog && activeStatus === 'live'
 
+  // Saving the XI on a due match normally starts it — unless the squad is
+  // short of available players. Surface the server's refusal wherever the
+  // coach lands after saving.
+  const blockedNote = startBlocked
+    ? `Lineups saved, but the match can't go live yet: only ${startBlocked.available} of ${startBlocked.required} required players are marked available. Collect more RSVPs on the event page, then start the match.`
+    : ''
+
   const homeName = isFixture ? event.home_squad_name : 'Your Squad'
   const awayName = isFixture ? event.away_squad_name : (event.opponent || 'Opponent')
   const summaryPath = isFixture ? `/events/${event.event_id}` : `/events/${entityId}`
@@ -488,11 +498,12 @@ function LiveMatch() {
     setSavingLineup(true)
     setError('')
     try {
-      await apiRequest(`${apiPrefix}/${entityId}/lineup`, {
+      const saved = await apiRequest(`${apiPrefix}/${entityId}/lineup`, {
         method: 'PUT',
         body: payload,
         getToken,
       })
+      setStartBlocked(saved?.startBlocked || null)
       await loadDetail()
     } catch (err) {
       setError(err.message)
@@ -985,9 +996,13 @@ function LiveMatch() {
         <Layout>
           {header}
           {error && <div className="roster-error">{error}</div>}
-          <div className="live-note">
-            Lineups are set. The match starts at kickoff — come back then to log actions.
-          </div>
+          {blockedNote ? (
+            <div className="live-note live-note-warn">{blockedNote}</div>
+          ) : (
+            <div className="live-note">
+              Lineups are set. The match starts at kickoff — come back then to log actions.
+            </div>
+          )}
           <Pitch homePlayers={withRatings(homeSide.starters)} awayPlayers={[]} />
         </Layout>
       )
@@ -1104,6 +1119,7 @@ function LiveMatch() {
 
       {syncNote && <div className="live-note">{syncNote}</div>}
       {hint && !flow && <div className="live-note">{hint}</div>}
+      {blockedNote && !flow && <div className="live-note live-note-warn">{blockedNote}</div>}
       {error && <div className="roster-error">{error}</div>}
 
       <div className="live-scoreboard">

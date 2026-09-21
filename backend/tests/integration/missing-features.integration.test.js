@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import request from 'supertest'
 import express from 'express'
-import { pool, resetDatabase } from './setup'
+import { pool, resetDatabase, seedAvailability } from './setup'
 
 import eventsRouter from '../../src/routes/events'
 import fixturesRouter from '../../src/routes/fixtures'
@@ -463,7 +463,9 @@ describe('Offline replay contract (idempotent creates, tolerant undos)', () => {
     )
 
     // The lineup PUT auto-starts a scheduled event whose kickoff has passed;
-    // the lineup gate still requires a starting XI up front.
+    // the lineup gate still requires a starting XI up front, and the
+    // availability gate a full complement of confirmed players.
+    await seedAvailability(event.id, athletes)
     const lineup = await request(app)
       .put(`/api/events/${event.id}/lineup`)
       .set('x-test-clerk-user-id', COACH)

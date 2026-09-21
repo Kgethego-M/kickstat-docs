@@ -279,6 +279,12 @@
   font-size: 14px;
 }
 
+/* Explains why a due match did not kick off after the XI was saved. */
+.live-note-warn {
+  border-color: rgba(224, 122, 122, 0.45);
+  background: rgba(224, 122, 122, 0.12);
+}
+
 /* Quick Sim / Simulate Match controls in the page header */
 .live-header-actions {
   display: flex;

@@ -13,6 +13,7 @@ const {
 const { ensureRatings, squadFromRows, ratingsPayload } = require('../lib/ratings');
 const { simulateMatch } = require('../lib/match-simulation');
 const { findClashes } = require('../lib/clashes');
+const { getMatchAvailability, availabilityError } = require('../lib/availability');
 
 const router = express.Router();
 
@@ -142,6 +143,19 @@ router.patch('/:id', requireAuth(), async (req, res) => {
     }
 
     const { event_date, status } = req.body;
+
+    // A fixture is a match: it can only kick off once enough of the home
+    // squad has confirmed availability (see lib/availability).
+    if (status === 'live' && fixture.status !== 'live') {
+      const availability = await getMatchAvailability(pool, {
+        eventId: fixture.event_id,
+        squadId: fixture.home_squad_id,
+      });
+      if (!availability.meets) {
+        return res.status(400).json({ error: availabilityError(availability), availability });
+      }
+    }
+
     const result = await pool.query(
       `UPDATE fixtures
        SET event_date = COALESCE($1, event_date),
@@ -194,14 +208,26 @@ router.put('/:id/lineup', requireAuth(), async (req, res) => {
 
     await saveLineup(pool, { fixtureId: fixture.id }, rows);
 
+    // Saving the XIs after kickoff normally starts the fixture — but only
+    // when enough of the home squad is available. The lineups themselves
+    // still save either way; the client surfaces startBlocked as a hint.
+    let startBlocked = null;
     if (fixture.status === 'scheduled' && (!fixture.event_date || new Date(fixture.event_date).getTime() <= Date.now())) {
-      await pool.query(
-        "UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
-        [fixture.id]
-      );
+      const availability = await getMatchAvailability(pool, {
+        eventId: fixture.event_id,
+        squadId: fixture.home_squad_id,
+      });
+      if (!availability.meets) {
+        startBlocked = availability;
+      } else {
+        await pool.query(
+          "UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
+          [fixture.id]
+        );
+      }
     }
 
-    res.json({ lineups: await getLineup(pool, { fixtureId: fixture.id }) });
+    res.json({ lineups: await getLineup(pool, { fixtureId: fixture.id }), startBlocked });
   } catch (err) {
     console.error('Error saving fixture lineup:', err.message);
     res.status(500).json({ error: 'Server error' });
@@ -262,8 +288,16 @@ router.post('/:id/simulate', requireAuth(), async (req, res) => {
     });
 
     // Simulating implies the match is being played now: a fixture still
-    // waiting on kickoff goes live first so the replay is accepted.
+    // waiting on kickoff goes live first so the replay is accepted — subject
+    // to the same availability bar as every other way a match can start.
     if (fixture.status === 'scheduled') {
+      const availability = await getMatchAvailability(pool, {
+        eventId: fixture.event_id,
+        squadId: fixture.home_squad_id,
+      });
+      if (!availability.meets) {
+        return res.status(400).json({ error: availabilityError(availability), availability });
+      }
       await pool.query(
         "UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",
         [fixture.id]
@@ -338,10 +372,18 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
     }
 
     // Same rule as events: no logging before the scheduled kickoff; a log
-    // after kickoff starts the fixture automatically.
+    // after kickoff starts the fixture automatically — provided enough of the
+    // home squad is available, so the RSVP bar can't be bypassed by logging.
     if (fixture.status === 'scheduled') {
       if (fixture.event_date && new Date(fixture.event_date).getTime() > Date.now()) {
         return res.status(400).json({ error: 'This fixture has not started yet' });
+      }
+      const availability = await getMatchAvailability(pool, {
+        eventId: fixture.event_id,
+        squadId: fixture.home_squad_id,
+      });
+      if (!availability.meets) {
+        return res.status(400).json({ error: availabilityError(availability), availability });
       }
       await pool.query(
         "UPDATE fixtures SET status = 'live', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1",

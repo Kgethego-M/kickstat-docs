@@ -557,7 +557,7 @@ function AthleteStats() {
     )
   }
 
-  const { athlete, injuries, currentInjury, bmi, overrides } = data
+  const { athlete, injuries, currentInjury, bmi, overrides, stats } = data
   const seed = Number(athlete.id) || 1
   const group = positionGroup(athlete.position)
 
@@ -570,7 +570,21 @@ function AthleteStats() {
   // training data is tracked yet: injured < managed < ready.
   const readiness = currentInjury ? 25 : athlete.is_managed ? 60 : 95
 
-  const involvementsPerMatch = agg.appearances > 0 ? ((agg.goals + agg.assists) / agg.appearances).toFixed(1) : '0.0'
+  // The season view shows the server's numbers: it computes the same totals
+  // across the whole log but folds in any manual corrections, so a corrected
+  // stat is the figure the coach sees. The 7d/30d windows are client-side
+  // slices of that log and a correction is a lifetime figure — those stay
+  // computed (and un-editable) as before.
+  const seasonStats = {
+    appearances: stats?.appearances ?? agg.appearances,
+    goals: stats?.goals ?? agg.goals,
+    assists: stats?.assists ?? agg.assists,
+    yellowCards: stats?.yellowCards ?? agg.yellowCards,
+    redCards: stats?.redCards ?? agg.redCards,
+  }
+  const shown = period === 'season' ? seasonStats : agg
+
+  const involvementsPerMatch = shown.appearances > 0 ? ((shown.goals + shown.assists) / shown.appearances).toFixed(1) : '0.0'
   const gk = group === 'gk' ? gkEstimates(seed, aggregate(logs).appearances) : null
 
   const age = athlete.date_of_birth
@@ -584,18 +598,18 @@ function AthleteStats() {
 
   const statCards = group === 'gk'
     ? [
-        { label: 'Appearances', value: agg.appearances, dark: true },
+        { label: 'Appearances', value: shown.appearances, dark: true },
         { label: 'Saves', value: gk.saves, dark: true, note: 'season estimate' },
         { label: 'Save %', value: gk.savePct, suffix: '%', accent: true, note: 'season estimate' },
         { label: 'Clean sheets', value: gk.cleanSheets, dark: true, note: 'season estimate' },
       ]
     : [
-        { label: 'Appearances', value: agg.appearances, dark: true },
-        { label: 'Goals', value: agg.goals, accent: true },
-        { label: 'Assists', value: agg.assists, dark: true },
+        { label: 'Appearances', value: shown.appearances, dark: true },
+        { label: 'Goals', value: shown.goals, accent: true },
+        { label: 'Assists', value: shown.assists, dark: true },
         { label: 'G+A / match', value: Number(involvementsPerMatch), dark: true },
-        { label: 'Yellow cards', value: agg.yellowCards, dark: true },
-        { label: 'Red cards', value: agg.redCards, dark: true },
+        { label: 'Yellow cards', value: shown.yellowCards, dark: true },
+        { label: 'Red cards', value: shown.redCards, dark: true },
       ]
 
   if (bmi != null) {
