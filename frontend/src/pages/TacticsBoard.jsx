@@ -23,6 +23,8 @@ function TacticsBoard() {
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [tacticName, setTacticName] = useState('')
   const [tacticDescription, setTacticDescription] = useState('')
+  const [saveError, setSaveError] = useState('')
+  const [saving, setSaving] = useState(false)
   const [arrowStart, setArrowStart] = useState(null)
   const [arrowEnd, setArrowEnd] = useState(null)
   const [isDrawingArrow, setIsDrawingArrow] = useState(false)
@@ -126,7 +128,9 @@ function TacticsBoard() {
   }
 
   async function saveTactic() {
-    if (!tacticName.trim()) return
+    if (!tacticName.trim() || saving) return
+    setSaveError('')
+    setSaving(true)
     try {
       const payload = {
         name: tacticName.trim(),
@@ -144,6 +148,9 @@ function TacticsBoard() {
       await loadTactics()
     } catch (err) {
       console.error('Failed to save tactic:', err)
+      setSaveError(err.message || 'Failed to save. Please try again.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -352,15 +359,16 @@ function TacticsBoard() {
         </div>
 
         {showSaveDialog && (
-          <div className="tactics-modal-overlay" onClick={() => setShowSaveDialog(false)}>
+          <div className="tactics-modal-overlay" onClick={() => { setShowSaveDialog(false); setSaveError('') }}>
             <div className="tactics-modal" onClick={(e) => e.stopPropagation()}>
               <h2>{currentTactic ? 'Update Routine' : 'Save Routine'}</h2>
+              {saveError && <p className="tactics-save-error">{saveError}</p>}
               <label>
                 Name
                 <input
                   type="text"
                   value={tacticName}
-                  onChange={(e) => setTacticName(e.target.value)}
+                  onChange={(e) => { setTacticName(e.target.value); setSaveError('') }}
                   placeholder="e.g. Corner kick routine"
                 />
               </label>
@@ -374,8 +382,10 @@ function TacticsBoard() {
                 />
               </label>
               <div className="tactics-modal-actions">
-                <button className="btn btn-ghost" onClick={() => setShowSaveDialog(false)}>Cancel</button>
-                <button className="btn btn-gold" onClick={saveTactic} disabled={!tacticName.trim()}>Save</button>
+                <button className="btn btn-ghost" onClick={() => { setShowSaveDialog(false); setSaveError('') }}>Cancel</button>
+                <button className="btn btn-gold" onClick={saveTactic} disabled={!tacticName.trim() || saving}>
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
               </div>
             </div>
           </div>
