@@ -7,6 +7,7 @@ import Roster from './pages/Roster'
 import AthleteStats from './pages/AthleteStats'
 import Compare from './pages/Compare'
 import TacticsBoard from './pages/TacticsBoard'
+import Sessions from './pages/Sessions'
 import Setup from './pages/Setup'
 import AccountSettings from './pages/AccountSettings'
 import InviteAccept from './pages/InviteAccept'
@@ -71,6 +72,14 @@ function App() {
           element={
             <OnboardingGuard>
               <TacticsBoard />
+            </OnboardingGuard>
+          }
+        />
+        <Route
+          path="/sessions"
+          element={
+            <OnboardingGuard>
+              <Sessions />
             </OnboardingGuard>
           }
         />

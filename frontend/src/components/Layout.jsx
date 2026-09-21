@@ -27,6 +27,7 @@ function Layout({ children }) {
           {navItem('/roster', 'Roster')}
           {navItem('/compare', 'Compare')}
           {navItem('/tactics', 'Tactics')}
+          {navItem('/sessions', 'Sessions')}
           {navItem('/events', 'Events')}
           {navItem('/live', 'Live')}
           {navItem('/settings', 'Settings')}

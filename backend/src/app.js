@@ -12,12 +12,12 @@ const athletesRouter = require('./routes/athletes');
 const eventsRouter = require('./routes/events');
 const fixturesRouter = require('./routes/fixtures');
 const invitesRouter = require('./routes/invites');
-const externalRouter = require('./routes/external');
 const accountRouter = require('./routes/account');
 const weatherRouter = require('./routes/weather');
 const injuriesRouter = require('./routes/injuries');
 const compareRouter = require('./routes/compare');
 const tacticsRouter = require('./routes/tactics');
+const sessionsRouter = require('./routes/sessions');
 const { sendEventReminders } = require('./lib/reminders');
 
 const app = express();
@@ -53,12 +53,12 @@ app.use('/api/athletes', athletesRouter);
 app.use('/api/events', eventsRouter);
 app.use('/api/fixtures', fixturesRouter);
 app.use('/api/invites', invitesRouter);
-app.use('/api/external', externalRouter);
 app.use('/api/account', accountRouter);
 app.use('/api/weather', weatherRouter);
 app.use('/api/injuries', injuriesRouter);
 app.use('/api/compare', compareRouter);
 app.use('/api/tactics', tacticsRouter);
+app.use('/api/sessions', sessionsRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
