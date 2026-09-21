@@ -10,11 +10,13 @@ import TacticsBoard from './pages/TacticsBoard'
 import Setup from './pages/Setup'
 import AccountSettings from './pages/AccountSettings'
 import InviteAccept from './pages/InviteAccept'
-import PublicSquad from './pages/PublicSquad'
 import Events from './pages/Events'
 import EventDetail from './pages/EventDetail'
 import Live from './pages/Live'
 import LiveMatch from './pages/LiveMatch'
+import PublicLanding from './pages/PublicLanding'
+import PublicSquad from './pages/PublicSquad'
+import PublicSquadLink from './pages/PublicSquadLink'
 import OnboardingGuard from './components/OnboardingGuard'
 import ConfirmProvider from './components/ConfirmProvider'
 import './App.css'
@@ -32,7 +34,7 @@ function App() {
             </OnboardingGuard>
           }
         />
-        <Route path="/welcome" element={<Welcome />} />  
+        <Route path="/welcome" element={<Welcome />} />
         <Route path="/sign-in/*" element={<SignInPage />} />
         <Route path="/sign-up/*" element={<SignUpPage />} />
         <Route
@@ -124,7 +126,11 @@ function App() {
           }
         />
         <Route path="/invite/:token" element={<InviteAccept />} />
-        <Route path="/public/:token" element={<PublicSquad />} />
+
+        {/* No OnboardingGuard, no auth — genuinely public */}
+        <Route path="/public" element={<PublicLanding />} />
+        <Route path="/public/:id" element={<PublicSquad />} />
+        <Route path="/public/link/:token" element={<PublicSquadLink />} />
       </Routes>
     </ConfirmProvider>
   )

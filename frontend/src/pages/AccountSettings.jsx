@@ -69,7 +69,11 @@ function AccountSettings() {
     setPublicLinkSaving(true)
     setError('')
     try {
-      const updated = await apiRequest('/api/squads/mine/public-link', { method: 'POST', getToken })
+      const updated = await apiRequest('/api/squads/mine', {
+        method: 'PATCH',
+        body: { is_public: true },
+        getToken,
+      })
       setSquad(updated)
     } catch (err) {
       setError(err.message)
@@ -82,7 +86,11 @@ function AccountSettings() {
     setPublicLinkSaving(true)
     setError('')
     try {
-      const updated = await apiRequest('/api/squads/mine/public-link', { method: 'DELETE', getToken })
+      const updated = await apiRequest('/api/squads/mine', {
+        method: 'PATCH',
+        body: { is_public: false },
+        getToken,
+      })
       setSquad(updated)
     } catch (err) {
       setError(err.message)
@@ -92,7 +100,7 @@ function AccountSettings() {
   }
 
   function copyPublicLink() {
-    const url = `${window.location.origin}/public/${squad.public_token}`
+    const url = `${window.location.origin}/public/link/${squad.public_token}`
     navigator.clipboard?.writeText(url).then(() => {
       setPublicLinkCopied(true)
       setTimeout(() => setPublicLinkCopied(false), 2000)
@@ -166,7 +174,7 @@ function AccountSettings() {
                   <input
                     type="text"
                     readOnly
-                    value={`${window.location.origin}/public/${squad.public_token}`}
+                    value={`${window.location.origin}/public/link/${squad.public_token}`}
                     onFocus={(e) => e.target.select()}
                   />
                 </label>
