@@ -539,6 +539,16 @@
   color: var(--color-ink-soft);
 }
 
+.live-timeline-pending {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #d69e2e;
+  border: 1px solid rgba(214, 158, 46, 0.5);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
 /* -------------------------------------------------------------------------
    Lineup wizard (pre-match screen)
 ------------------------------------------------------------------------- */
@@ -740,11 +750,23 @@
 }
 
 .offline-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   background: rgba(214, 158, 46, 0.12);
   border: 1px solid rgba(214, 158, 46, 0.4);
   border-radius: 8px;
   padding: 0.6rem 1rem;
   margin-bottom: 1rem;
   font-size: 0.85rem;
+  color: #d69e2e;
+}
+
+.offline-sync-btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  border-color: rgba(214, 158, 46, 0.5);
   color: #d69e2e;
 }

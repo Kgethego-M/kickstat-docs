@@ -12,6 +12,7 @@ const {
 } = require('../lib/lineups');
 const { ensureRatings, squadFromRows, ratingsPayload } = require('../lib/ratings');
 const { simulateMatch } = require('../lib/match-simulation');
+const { findClashes } = require('../lib/clashes');
 
 const router = express.Router();
 
@@ -240,30 +241,6 @@ async function loadEventWithAccess(pool, eventId, squadId) {
   return eventResult.rows[0] || null;
 }
 
-// Finds this squad's other non-cancelled events whose scheduled window
-// overlaps [timestamp, timestamp + durationMinutes). Used to flag clashes
-// on the calendar without blocking creation/edits — a coach may genuinely
-// need to double-book (e.g. an assistant covering one while they run the
-// other), so this is advisory, not a hard rule.
-async function findClashes(pool, squadId, timestamp, durationMinutes, excludeEventId = null) {
-  if (!timestamp) return [];
-  const duration = durationMinutes || 90;
-
-  const result = await pool.query(
-    `SELECT id, title, opponent, event_date, duration_minutes, location, format
-     FROM events
-     WHERE squad_id = $1
-       AND status != 'cancelled'
-       AND ($2::integer IS NULL OR id != $2)
-       AND event_date < ($3::timestamp + ($4 || ' minutes')::interval)
-       AND (event_date + (COALESCE(duration_minutes, 90) || ' minutes')::interval) > $3::timestamp
-     ORDER BY event_date`,
-    [squadId, excludeEventId, timestamp, duration]
-  );
-
-  return result.rows;
-}
-
 // Resolves the athlete row linked to the logged-in user's account, if any
 // (only athletes accepted via invite have one). Used by the RSVP "mine"
 // endpoint so an athlete can only ever respond for themselves.
@@ -282,11 +259,24 @@ router.get('/', requireAuth(), async (req, res) => {
     const { userId: clerkUserId } = getAuth(req);
     const squadId = await getOwnedSquadId(pool, clerkUserId);
 
+    // The RSVP tallies ride along with the list so the calendar can show
+    // availability at a glance without one request per event.
     const result = await pool.query(
       `SELECT e.*,
-              (SELECT COUNT(*) FROM event_teams et WHERE et.event_id = e.id) AS team_count
+              (SELECT COUNT(*) FROM event_teams et WHERE et.event_id = e.id) AS team_count,
+              COALESCE(r.available, 0)::int AS available_count,
+              COALESCE(r.unavailable, 0)::int AS unavailable_count,
+              COALESCE(r.maybe, 0)::int AS maybe_count
        FROM events e
        LEFT JOIN event_teams et ON et.event_id = e.id AND et.squad_id = $1
+       LEFT JOIN (
+         SELECT event_id,
+                COUNT(*) FILTER (WHERE status = 'available') AS available,
+                COUNT(*) FILTER (WHERE status = 'unavailable') AS unavailable,
+                COUNT(*) FILTER (WHERE status = 'maybe') AS maybe
+         FROM event_rsvps
+         GROUP BY event_id
+       ) r ON r.event_id = e.id
        WHERE e.squad_id = $1
           OR et.squad_id IS NOT NULL
           OR (e.status = 'open' AND e.format IN ('league', 'tournament'))
@@ -400,11 +390,38 @@ router.post('/', requireAuth(), async (req, res) => {
       event.team_count = 1;
     }
 
-    const clashes = await findClashes(pool, squadId, timestamp, event.duration_minutes, event.id);
+    const clashes = await findClashes(pool, squadId, timestamp, event.duration_minutes, {
+      excludeEventId: event.id,
+    });
 
     res.status(201).json({ ...event, clashes });
   } catch (err) {
     console.error('Error creating event:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/events/clashes — pre-check a proposed time before the event
+// exists (the create form warns before saving). Query params: event_date,
+// event_time, duration_minutes, exclude_id (set when re-checking an edit).
+// Registered before /:id so "clashes" is never parsed as an event id.
+router.get('/clashes', requireAuth(), async (req, res) => {
+  try {
+    const { userId: clerkUserId } = getAuth(req);
+    const squadId = await getOwnedSquadId(pool, clerkUserId);
+
+    const { event_date, event_time, duration_minutes, exclude_id } = req.query;
+    if (!event_date) {
+      return res.status(400).json({ error: 'event_date is required' });
+    }
+
+    const timestamp = event_time ? `${event_date}T${event_time}` : event_date;
+    const clashes = await findClashes(pool, squadId, timestamp, Number(duration_minutes) || 90, {
+      excludeEventId: exclude_id ? Number(exclude_id) : null,
+    });
+    res.json(clashes);
+  } catch (err) {
+    console.error('Error pre-checking clashes:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -503,7 +520,9 @@ router.patch('/:id', requireAuth(), async (req, res) => {
     );
 
     const updated = result.rows[0];
-    const clashes = await findClashes(pool, squadId, updated.event_date, updated.duration_minutes, updated.id);
+    const clashes = await findClashes(pool, squadId, updated.event_date, updated.duration_minutes, {
+      excludeEventId: updated.id,
+    });
 
     res.json({ ...updated, clashes });
   } catch (err) {
@@ -524,7 +543,9 @@ router.get('/:id/clashes', requireAuth(), async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    const clashes = await findClashes(pool, squadId, event.event_date, event.duration_minutes, event.id);
+    const clashes = await findClashes(pool, squadId, event.event_date, event.duration_minutes, {
+      excludeEventId: event.id,
+    });
     res.json(clashes);
   } catch (err) {
     console.error('Error checking clashes:', err.message);
@@ -895,6 +916,20 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
+    // Idempotent replay: an offline-queued log is retried with the same
+    // client-generated id, so a create that already landed returns the
+    // stored row instead of inserting a duplicate.
+    const clientId = req.body.client_id ? String(req.body.client_id).slice(0, 64) : null;
+    if (clientId) {
+      const existing = await pool.query(
+        'SELECT * FROM log_entries WHERE client_id = $1 AND event_id = $2 LIMIT 1',
+        [clientId, req.params.id]
+      );
+      if (existing.rows.length > 0) {
+        return res.status(200).json(existing.rows[0]);
+      }
+    }
+
     if (event.status === 'cancelled') {
       return res.status(400).json({ error: 'Event is cancelled' });
     }
@@ -986,8 +1021,8 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
     try {
       await client.query('BEGIN');
       const result = await client.query(
-        `INSERT INTO log_entries (event_id, athlete_id, action_type, is_scoring, value, minute, notes, logged_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        `INSERT INTO log_entries (event_id, athlete_id, action_type, is_scoring, value, minute, notes, logged_by, client_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
         [
           req.params.id,
           athlete_id || null,
@@ -997,6 +1032,7 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
           minute ?? null,
           entryNotes,
           userId,
+          clientId,
         ]
       );
       createdEntry = result.rows[0];
@@ -1011,6 +1047,17 @@ router.post('/:id/logs', requireAuth(), async (req, res) => {
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
+      // Two replays of the same queued log can race; the unique index makes
+      // the loser read back the winner's row instead of failing.
+      if (clientId && err.code === '23505') {
+        const existing = await pool.query(
+          'SELECT * FROM log_entries WHERE client_id = $1 AND event_id = $2 LIMIT 1',
+          [clientId, req.params.id]
+        );
+        if (existing.rows.length > 0) {
+          return res.status(200).json(existing.rows[0]);
+        }
+      }
       throw err;
     } finally {
       client.release();
@@ -1078,7 +1125,19 @@ router.delete('/:id/logs/:logId', requireAuth(), async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized to undo this log entry' });
+      // Idempotent undo: an offline queue may replay a delete that already
+      // landed. Already-gone is a success; only a truly unknown entry 404s,
+      // so a replayed undo never wedges the queue forever.
+      const exists = await pool.query(
+        `SELECT l.id FROM log_entries l
+         JOIN events e ON e.id = l.event_id
+         WHERE l.id = $1 AND l.event_id = $2 AND e.squad_id = $3 AND l.fixture_id IS NULL`,
+        [req.params.logId, req.params.id, squadId]
+      );
+      if (exists.rows.length === 0) {
+        return res.status(404).json({ error: 'Log entry not found' });
+      }
+      return res.sendStatus(204);
     }
 
     // Undoing a goal also wipes its linked assist entries.

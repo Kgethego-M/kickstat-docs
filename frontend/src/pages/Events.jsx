@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import Loader from '../components/Loader'
 import { apiRequest } from '../lib/api'
+import { useConfirm } from '../lib/confirm'
 import WeatherWidget from '../components/WeatherWidget'
 import './Events.css'
 
@@ -66,6 +67,7 @@ function dayKey(date) {
 function Events() {
   const { getToken } = useAuth()
   const navigate = useNavigate()
+  const confirm = useConfirm()
 
   // --- My Events state ---
   const [events, setEvents] = useState([])
@@ -166,6 +168,37 @@ function Events() {
       location: form.location.trim() || null,
     }
 
+    // Advisory pre-check against the calendar before anything is written
+    // (events and joined-league fixtures alike). Clashes never block a
+    // save — a coach may mean to double-book — they just ask first. If the
+    // check itself can't run, creation still goes ahead: the server returns
+    // the same list with the response.
+    if (!isLeague) {
+      try {
+        const clashes = await apiRequest(
+          `/api/events/clashes?event_date=${encodeURIComponent(form.event_date)}&duration_minutes=${body.duration_minutes}`,
+          { getToken }
+        )
+        if (clashes.length > 0) {
+          const names = clashes
+            .slice(0, 3)
+            .map((c) => `${c.label} (${new Date(c.event_date).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })})`)
+            .join('; ')
+          const proceed = await confirm({
+            title: 'This time slot is already busy',
+            message: `Overlaps ${clashes.length} item${clashes.length === 1 ? '' : 's'} already on the calendar: ${names}${clashes.length > 3 ? ` and ${clashes.length - 3} more` : ''}. Schedule anyway?`,
+            confirmLabel: 'Schedule anyway',
+          })
+          if (!proceed) {
+            setSaving(false)
+            return
+          }
+        }
+      } catch {
+        // Advisory only — carry on if the pre-check itself failed.
+      }
+    }
+
     try {
       const created = await apiRequest('/api/events', {
         method: 'POST',
@@ -245,6 +278,31 @@ function Events() {
   }
 
   // --- Calendar helpers ---
+
+  // Mirrors the server's clash rule for display: two non-cancelled events on
+  // this calendar whose scheduled windows overlap. League/tournament
+  // containers are excluded — their date is just when the competition
+  // opens, and clashes against joined-league fixtures are reported on the
+  // event's own page.
+  const clashingEventIds = useMemo(() => {
+    const ids = new Set()
+    const active = events.filter(
+      (e) => e.status !== 'cancelled' && e.format !== 'league' && e.format !== 'tournament' && e.event_date
+    )
+    for (let i = 0; i < active.length; i++) {
+      const aStart = new Date(active[i].event_date).getTime()
+      const aEnd = aStart + (active[i].duration_minutes || 90) * 60000
+      for (let j = i + 1; j < active.length; j++) {
+        const bStart = new Date(active[j].event_date).getTime()
+        const bEnd = bStart + (active[j].duration_minutes || 90) * 60000
+        if (aStart < bEnd && bStart < aEnd) {
+          ids.add(active[i].id)
+          ids.add(active[j].id)
+        }
+      }
+    }
+    return ids
+  }, [events])
 
   const eventsByDay = useMemo(() => {
     const map = {}
@@ -579,20 +637,35 @@ function Events() {
                         <span className={`event-status event-status-${event.status}`}>
                           {statusLabel[event.status] || event.status}
                         </span>
+                        {clashingEventIds.has(event.id) && (
+                          <span className="evt-tag evt-tag-clash" title="Overlaps another event on this calendar">
+                            Clash
+                          </span>
+                        )}
                       </span>
                       <h3 className="evt-name">{eventDisplayTitle(event)}</h3>
                       <span className="evt-meta">
                         {isLeagueEvent ? (
                           <span>{`${event.team_count || 0} / ${event.required_teams || '?'} teams joined`}</span>
-                        ) : event.location ? (
-                          <span className="evt-loc">
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" focusable="false">
-                              <path d="M6 10.5S2.5 7.6 2.5 5a3.5 3.5 0 1 1 7 0c0 2.6-3.5 5.5-3.5 5.5Z" stroke="currentColor" strokeWidth="1.2" />
-                              <circle cx="6" cy="5" r="1.2" stroke="currentColor" strokeWidth="1.2" />
-                            </svg>
-                            {event.location}
-                          </span>
-                        ) : null}
+                        ) : (
+                          <>
+                            {(event.available_count > 0 || event.unavailable_count > 0 || event.maybe_count > 0) && (
+                              <span className="evt-rsvp" title="Player availability (RSVPs)">
+                                {event.available_count} in · {event.unavailable_count} out
+                                {event.maybe_count > 0 ? ` · ${event.maybe_count} maybe` : ''}
+                              </span>
+                            )}
+                            {event.location && (
+                              <span className="evt-loc">
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" focusable="false">
+                                  <path d="M6 10.5S2.5 7.6 2.5 5a3.5 3.5 0 1 1 7 0c0 2.6-3.5 5.5-3.5 5.5Z" stroke="currentColor" strokeWidth="1.2" />
+                                  <circle cx="6" cy="5" r="1.2" stroke="currentColor" strokeWidth="1.2" />
+                                </svg>
+                                {event.location}
+                              </span>
+                            )}
+                          </>
+                        )}
                       </span>
                     </span>
                   </button>
