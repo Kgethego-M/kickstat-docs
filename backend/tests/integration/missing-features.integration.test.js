@@ -405,18 +405,22 @@ describe('Public squad page', () => {
   test('the link serves the roster unauthenticated and can be switched off', async () => {
     const { athletes } = await seedSquadWithRoster(2)
 
+    // Sharing is toggled through the squad PATCH now, not a dedicated
+    // public-link endpoint. The token is generated the first time it's
+    // switched on and kept afterwards.
     const enabled = await request(app)
-      .post('/api/squads/mine/public-link')
+      .patch('/api/squads/mine')
       .set('x-test-clerk-user-id', COACH)
+      .send({ is_public: true })
 
     expect(enabled.status).toBe(200)
-    expect(enabled.body.public_token).toMatch(/^[0-9a-f]{32}$/)
+    expect(enabled.body.public_token).toMatch(/^[0-9a-f]{48}$/)
     expect(enabled.body.is_public).toBe(true)
 
     const token = enabled.body.public_token
 
     // No auth header at all — this is what the shared public page does.
-    const page = await request(app).get(`/api/public/squads/${token}`)
+    const page = await request(app).get(`/api/public/links/${token}`)
 
     expect(page.status).toBe(200)
     expect(page.body.squadName).toBe('My Squad')
@@ -428,23 +432,27 @@ describe('Public squad page', () => {
       expect.objectContaining({ appearances: 0, goals: 0, assists: 0 })
     )
 
-    const csv = await request(app).get(`/api/public/squads/${token}/export.csv`)
+    const csv = await request(app).get(`/api/public/links/${token}/export.csv`)
     expect(csv.status).toBe(200)
     expect(csv.headers['content-type']).toContain('text/csv')
     expect(csv.text).toContain('Player 1')
 
     const disabled = await request(app)
-      .delete('/api/squads/mine/public-link')
+      .patch('/api/squads/mine')
       .set('x-test-clerk-user-id', COACH)
+      .send({ is_public: false })
     expect(disabled.status).toBe(200)
     expect(disabled.body.is_public).toBe(false)
+    // Switching off keeps the token, so the same link works again if the
+    // coach turns sharing back on.
+    expect(disabled.body.public_token).toBe(token)
 
-    const afterDisable = await request(app).get(`/api/public/squads/${token}`)
+    const afterDisable = await request(app).get(`/api/public/links/${token}`)
     expect(afterDisable.status).toBe(404)
   })
 
   test('an unknown token 404s', async () => {
-    const res = await request(app).get('/api/public/squads/does-not-exist')
+    const res = await request(app).get('/api/public/links/does-not-exist')
     expect(res.status).toBe(404)
   })
 })

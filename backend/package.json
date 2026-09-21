@@ -10,7 +10,8 @@
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
     "lint": "eslint .",
-    "migrate": "node-pg-migrate"
+    "migrate": "node-pg-migrate",
+    "migrate:test": "node-pg-migrate --database-url-var TEST_DATABASE_URL"
   },
   "keywords": [],
   "author": "",
