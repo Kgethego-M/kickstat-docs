@@ -18,7 +18,7 @@ export default function ClashBanner({ eventId, fixtureId, getToken }) {
       : `/api/events/${eventId}/clashes`
     apiRequest(path, { getToken })
       .then((data) => {
-        if (!cancelled) setClashes(data || [])
+        if (!cancelled) setClashes(Array.isArray(data) ? data : [])
       })
       .catch(() => {
         // A failed clash check shouldn't block viewing the event.

@@ -28,10 +28,11 @@ router.get('/mine', requireAuth(), async (req, res) => {
   }
 });
 
-// PATCH /api/squads/mine — rename the squad, set gender, and/or mark onboarding complete
+// PATCH /api/squads/mine — rename the squad, set gender, mark onboarding complete,
+// and/or toggle public page visibility
 router.patch('/mine', requireAuth(), async (req, res) => {
   try {
-    const { name, gender, onboarded } = req.body;
+    const { name, gender, onboarded, is_public } = req.body;
 
     if (name !== undefined && !name.trim()) {
       return res.status(400).json({ error: 'Squad name cannot be empty' });
@@ -44,60 +45,30 @@ router.patch('/mine', requireAuth(), async (req, res) => {
     const { userId: clerkUserId } = getAuth(req);
     const squadId = await getOwnedSquadId(pool, clerkUserId);
 
+    // Only relevant when turning public ON. If the squad already has a
+    // token (e.g. was public before and got turned off), we keep it so the
+    // same link keeps working rather than silently breaking a link someone
+    // was already given out. The COALESCE below only uses this value when
+    // public_token is currently NULL.
+    const candidateToken = is_public === true ? crypto.randomBytes(24).toString('hex') : null;
+
     const result = await pool.query(
       `UPDATE squads
        SET name = COALESCE($1, name),
            gender = COALESCE($2, gender),
-           onboarded = COALESCE($3, onboarded)
-       WHERE id = $4 RETURNING *`,
-      [name ? name.trim() : null, gender || null, onboarded ?? null, squadId]
+           onboarded = COALESCE($3, onboarded),
+           is_public = COALESCE($4, is_public),
+           public_token = CASE
+             WHEN $4 = true THEN COALESCE(public_token, $6)
+             ELSE public_token
+           END
+       WHERE id = $5 RETURNING *`,
+      [name ? name.trim() : null, gender || null, onboarded ?? null, is_public ?? null, squadId, candidateToken]
     );
 
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating squad:', err.message);
-    const status = err.status || 500;
-    res.status(status).json({ error: status === 403 ? err.message : 'Server error' });
-  }
-});
-
-// POST /api/squads/mine/public-link — turn on (or rotate) the squad's
-// public, unauthenticated share link. Anyone with the token can view the
-// squad's roster and results via /api/public/squads/:token.
-router.post('/mine/public-link', requireAuth(), async (req, res) => {
-  try {
-    const { userId: clerkUserId } = getAuth(req);
-    const squadId = await getOwnedSquadId(pool, clerkUserId);
-
-    const token = crypto.randomBytes(16).toString('hex');
-    const result = await pool.query(
-      `UPDATE squads SET public_token = $1, is_public = true WHERE id = $2 RETURNING *`,
-      [token, squadId]
-    );
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error creating public link:', err.message);
-    const status = err.status || 500;
-    res.status(status).json({ error: status === 403 ? err.message : 'Server error' });
-  }
-});
-
-// DELETE /api/squads/mine/public-link — turn the public page back off. The
-// token is kept (not wiped) so re-enabling later doesn't hand out a new URL.
-router.delete('/mine/public-link', requireAuth(), async (req, res) => {
-  try {
-    const { userId: clerkUserId } = getAuth(req);
-    const squadId = await getOwnedSquadId(pool, clerkUserId);
-
-    const result = await pool.query(
-      `UPDATE squads SET is_public = false WHERE id = $1 RETURNING *`,
-      [squadId]
-    );
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error disabling public link:', err.message);
     const status = err.status || 500;
     res.status(status).json({ error: status === 403 ? err.message : 'Server error' });
   }

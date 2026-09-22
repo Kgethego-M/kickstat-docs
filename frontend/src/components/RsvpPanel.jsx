@@ -30,7 +30,11 @@ export default function RsvpPanel({ eventId, getToken }) {
       ])
       setRole(me.role)
       setMyAthleteId(me.athleteId)
-      setRsvps(data.rsvps)
+      // Guard against a missing/malformed rsvps field (e.g. an unexpected
+      // response shape) rather than trusting the API always returns an
+      // array — an undefined value here would otherwise silently break
+      // every .find()/.map() call below.
+      setRsvps(Array.isArray(data.rsvps) ? data.rsvps : [])
       setSummary(data.summary)
       setError('')
     } catch (err) {
