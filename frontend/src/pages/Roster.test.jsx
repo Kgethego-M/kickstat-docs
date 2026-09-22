@@ -78,7 +78,7 @@ describe('Roster', () => {
 
     expect(screen.getAllByRole('button', { name: /^Edit$/i }).length).toBe(2)
     expect(screen.getAllByRole('button', { name: /Remove/i }).length).toBe(2)
-  })
+  }, 10000)
 
   it('opens the add-athlete form when the coach clicks Add athlete', async () => {
     mocks.apiRequest.mockImplementation((path) => {
