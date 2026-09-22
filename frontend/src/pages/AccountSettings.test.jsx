@@ -33,7 +33,7 @@ function renderSettings() {
 
 function mockSquadLoad(name = 'Golden Lions') {
   mocks.apiRequest.mockImplementation((path) => {
-    if (path === '/api/squads/mine') return Promise.resolve({ name })
+    if (path === '/api/squads/mine') return Promise.resolve({ name, gender: 'male' })
     return Promise.resolve({})
   })
 }
@@ -72,7 +72,7 @@ describe('AccountSettings', () => {
     await waitFor(() => {
       expect(mocks.apiRequest).toHaveBeenCalledWith('/api/squads/mine', {
         method: 'PATCH',
-        body: { name: 'Silver Falcons' },
+        body: { name: 'Silver Falcons', gender: 'male' },
         getToken: mocks.getToken,
       })
     })
