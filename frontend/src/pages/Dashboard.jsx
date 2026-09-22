@@ -220,6 +220,9 @@ function Dashboard() {
           <span className={`dash-stat-delta ${readinessDelta >= 0 ? 'dash-stat-delta-up' : 'dash-stat-delta-down'}`}>
             {readinessDelta >= 0 ? '+' : ''}{readinessDelta}% this period
           </span>
+          {squad.gender && (
+            <span className="dash-gender-badge">{squad.gender === 'male' ? '♂ Male' : '♀ Female'}</span>
+          )}
         </div>
 
         <div className="dash-stat-card">

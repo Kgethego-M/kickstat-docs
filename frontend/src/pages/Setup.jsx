@@ -24,6 +24,7 @@ function Setup() {
   }, [step])
 
   const [squadName, setSquadName] = useState('')
+  const [squadGender, setSquadGender] = useState('male')
 
   const [assistantEmail, setAssistantEmail] = useState('')
   const [assistantInviteLink, setAssistantInviteLink] = useState(null)
@@ -49,7 +50,7 @@ function Setup() {
     try {
       await apiRequest('/api/squads/mine', {
         method: 'PATCH',
-        body: { name: squadName.trim() },
+        body: { name: squadName.trim(), gender: squadGender },
         getToken,
       })
       setStep('assistant')
@@ -183,6 +184,13 @@ function Setup() {
                 required
                 autoFocus
               />
+            </label>
+            <label className="roster-form-wide">
+              Squad gender
+              <select value={squadGender} onChange={(e) => setSquadGender(e.target.value)}>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
             </label>
           </div>
           <div className="roster-form-actions">

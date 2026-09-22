@@ -79,6 +79,42 @@
   box-shadow: 0 10px 22px rgba(var(--color-ink-rgb), 0.18);
 }
 
+.evt-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.evt-gender-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 2px solid var(--color-ink-soft);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.evt-gender-btn:hover {
+  border-color: var(--color-ink);
+  color: var(--color-ink);
+}
+
+.evt-gender-btn-active {
+  border-color: var(--color-lime);
+  background: var(--color-lime);
+  color: var(--color-ink);
+}
+
 /* ---------------------------------------------------------------------------
    Hero strip — current month / control-the-week panel
 --------------------------------------------------------------------------- */
@@ -359,6 +395,22 @@
 .evt-tag-clash {
   background: rgba(214, 158, 46, 0.14);
   color: #b7791f;
+}
+
+/* Gender badge on open events. */
+.evt-tag-gender {
+  background: rgba(128, 90, 213, 0.12);
+  color: #6b46c1;
+}
+
+.evt-tag-gender-male {
+  background: rgba(66, 153, 225, 0.12);
+  color: #2b6cb0;
+}
+
+.evt-tag-gender-female {
+  background: rgba(237, 100, 166, 0.12);
+  color: #b83280;
 }
 
 /* RSVP tally: in / out [/ maybe]. */

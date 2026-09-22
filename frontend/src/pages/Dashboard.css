@@ -258,6 +258,20 @@
   font-weight: 600;
 }
 
+.dash-gender-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  align-self: flex-start;
+}
+
 .dash-stat-delta-up { color: var(--color-lime); }
 .dash-stat-delta-down { color: #ff8a8a; }
 

@@ -63,6 +63,9 @@ function Events() {
   const [calendarDate, setCalendarDate] = useState(() => new Date())
   const [dayPopup, setDayPopup] = useState(null) // { key, label, events } | null
 
+  // --- Gender filter for matchmaking ---
+  const [genderFilter, setGenderFilter] = useState(false)
+
   const rosterBelowMinimum = !!(
     squad && squad.athlete_count < squad.min_roster_size
   )
@@ -73,7 +76,8 @@ function Events() {
     }
     setError('')
     try {
-      const data = await apiRequest('/api/events', { getToken })
+      const params = genderFilter ? '?gender_filter=true' : ''
+      const data = await apiRequest(`/api/events${params}`, { getToken })
       setEvents(data)
     } catch (err) {
       setError(err.message)
@@ -354,12 +358,26 @@ function Events() {
           <span className="evt-eyebrow">Schedule and fixtures</span>
           <h1 className="evt-title-main">Events</h1>
         </div>
-        <button type="button" className="evt-schedule-btn" onClick={openForm}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" focusable="false">
-            <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          Schedule event
-        </button>
+        <div className="evt-head-actions">
+          <button
+            type="button"
+            className={`evt-gender-btn${genderFilter ? ' evt-gender-btn-active' : ''}`}
+            onClick={() => setGenderFilter((v) => !v)}
+            title="Filter open events by compatible gender"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="12" cy="8" r="5" />
+              <path d="M12 13v8M9 18h6" />
+            </svg>
+            {genderFilter ? 'Gender on' : 'Gender filter'}
+          </button>
+          <button type="button" className="evt-schedule-btn" onClick={openForm}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" focusable="false">
+              <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            Schedule event
+          </button>
+        </div>
       </header>
 
       <section className="evt-hero">
@@ -551,6 +569,11 @@ function Events() {
                         <span className={`event-status event-status-${event.status}`}>
                           {statusLabel[event.status] || event.status}
                         </span>
+                        {event.gender && (
+                          <span className={`evt-tag evt-tag-gender evt-tag-gender-${event.gender}`}>
+                            {event.gender === 'male' ? '♂' : '♀'} {event.gender}
+                          </span>
+                        )}
                         {clashingEventIds.has(event.id) && (
                           <span className="evt-tag evt-tag-clash" title="Overlaps another event on this calendar">
                             Clash

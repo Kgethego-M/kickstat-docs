@@ -279,11 +279,25 @@ router.get('/', requireAuth(), async (req, res) => {
   try {
     const { userId: clerkUserId } = getAuth(req);
     const squadId = await getOwnedSquadId(pool, clerkUserId);
+    const { gender_filter } = req.query;
+
+    // Fetch the squad's gender for matchmaking filtering
+    let genderClause = '';
+    let genderParam = null;
+    if (gender_filter === 'true') {
+      const squadResult = await pool.query('SELECT gender FROM squads WHERE id = $1', [squadId]);
+      const squadGender = squadResult.rows[0]?.gender || 'male';
+      // Compatible genders: same gender only
+      const compatible = [squadGender];
+      genderClause = `AND (opp_squad.gender = ANY($2) OR opp_squad.gender IS NULL)`;
+      genderParam = compatible;
+    }
 
     // The RSVP tallies ride along with the list so the calendar can show
     // availability at a glance without one request per event.
     const result = await pool.query(
       `SELECT e.*,
+              opp_squad.gender,
               (SELECT COUNT(*) FROM event_teams et WHERE et.event_id = e.id) AS team_count,
               COALESCE(r.available, 0)::int AS available_count,
               COALESCE(r.unavailable, 0)::int AS unavailable_count,
@@ -298,11 +312,13 @@ router.get('/', requireAuth(), async (req, res) => {
          FROM event_rsvps
          GROUP BY event_id
        ) r ON r.event_id = e.id
+       LEFT JOIN squads opp_squad ON opp_squad.id = e.squad_id
        WHERE e.squad_id = $1
           OR et.squad_id IS NOT NULL
           OR (e.status = 'open' AND e.format IN ('league', 'tournament'))
+       ${genderClause}
        ORDER BY e.event_date DESC`,
-      [squadId]
+      gender_filter === 'true' ? [squadId, genderParam] : [squadId]
     );
     res.json(result.rows);
   } catch (err) {

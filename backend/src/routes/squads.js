@@ -28,13 +28,17 @@ router.get('/mine', requireAuth(), async (req, res) => {
   }
 });
 
-// PATCH /api/squads/mine — rename the squad and/or mark onboarding complete
+// PATCH /api/squads/mine — rename the squad, set gender, and/or mark onboarding complete
 router.patch('/mine', requireAuth(), async (req, res) => {
   try {
-    const { name, onboarded } = req.body;
+    const { name, gender, onboarded } = req.body;
 
     if (name !== undefined && !name.trim()) {
       return res.status(400).json({ error: 'Squad name cannot be empty' });
+    }
+
+    if (gender !== undefined && !['male', 'female'].includes(gender)) {
+      return res.status(400).json({ error: 'Gender must be male or female' });
     }
 
     const { userId: clerkUserId } = getAuth(req);
@@ -43,9 +47,10 @@ router.patch('/mine', requireAuth(), async (req, res) => {
     const result = await pool.query(
       `UPDATE squads
        SET name = COALESCE($1, name),
-           onboarded = COALESCE($2, onboarded)
-       WHERE id = $3 RETURNING *`,
-      [name ? name.trim() : null, onboarded ?? null, squadId]
+           gender = COALESCE($2, gender),
+           onboarded = COALESCE($3, onboarded)
+       WHERE id = $4 RETURNING *`,
+      [name ? name.trim() : null, gender || null, onboarded ?? null, squadId]
     );
 
     res.json(result.rows[0]);

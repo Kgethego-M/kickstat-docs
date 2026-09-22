@@ -8,6 +8,7 @@ import './AccountSettings.css'
 function AccountSettings() {
   const { getToken, signOut } = useAuth()
   const [teamName, setTeamName] = useState('')
+  const [gender, setGender] = useState('male')
   const [squad, setSquad] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -28,6 +29,7 @@ function AccountSettings() {
     try {
       const data = await apiRequest('/api/squads/mine', { getToken })
       setTeamName(data.name || '')
+      setGender(data.gender || 'male')
       setSquad(data)
     } catch (err) {
       setError(err.message)
@@ -54,7 +56,7 @@ function AccountSettings() {
     try {
       await apiRequest('/api/squads/mine', {
         method: 'PATCH',
-        body: { name: teamName.trim() },
+        body: { name: teamName.trim(), gender },
         getToken,
       })
       setSaved(true)
@@ -140,6 +142,13 @@ function AccountSettings() {
                   onChange={(e) => { setTeamName(e.target.value); setSaved(false) }}
                   required
                 />
+              </label>
+              <label className="roster-form-wide">
+                Squad gender
+                <select value={gender} onChange={(e) => { setGender(e.target.value); setSaved(false) }}>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
               </label>
             </div>
             <div className="roster-form-actions">
