@@ -19,6 +19,16 @@ const config = {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
+  headTags: [
+    {
+      tagName: 'meta',
+      attributes: {
+        name: 'algolia-site-verification',
+        content: 'B46B9657BB4327C6',
+      },
+    },
+  ],
+
   // TODO: set this once a deployment target is chosen (GitHub Pages /
   // Cloudflare Pages / other static host). This MUST match the real
   // deployed URL or client-side routing will break.
@@ -49,11 +59,6 @@ const config = {
     defaultLocale: 'en',
     locales: ['en'],
   },
-
-  markdown: {
-    mermaid: true,
-  },
-  themes: ['@docusaurus/theme-mermaid'],
 
   presets: [
     [
@@ -140,6 +145,12 @@ const config = {
       prism: {
         theme: prismThemes.github,
         darkTheme: prismThemes.dracula,
+      },
+      algolia: {
+        appId: 'GZ8KXBMDIA',
+        apiKey: 'dfdadd204e31fefe0eea69f593ebb765',
+        indexName: 'kickstat-docs',
+        contextualSearch: true,
       },
     }),
 };
