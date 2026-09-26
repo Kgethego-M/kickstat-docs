@@ -13,20 +13,36 @@ const router = express.Router()
 // `athlete_id`. Also sends the actual invite email now, rather than just
 // handing back a link to copy/paste.
 async function createInvite(pool, { email, squadId, invitedBy, role = 'assistant', athleteId = null }) {
-  // Don't silently create a second invite for someone who's already been
-  // invited (or has already joined) this squad.
+  // If someone's already joined this squad, don't allow another invite for
+  // them. But if there's just a pending invite sitting there, resend it
+  // instead of blocking — coaches need to be able to re-trigger delivery
+  // (e.g. if the first email got lost, bounced, or was never sent).
   const existing = await pool.query(
-    "SELECT id, status FROM invites WHERE email = $1 AND squad_id = $2 AND status IN ('pending','accepted') LIMIT 1",
+    "SELECT id, status, token FROM invites WHERE email = $1 AND squad_id = $2 AND status IN ('pending','accepted') LIMIT 1",
     [email, squadId]
   )
+
+  const squadResult = await pool.query('SELECT name FROM squads WHERE id = $1', [squadId])
+  const squadName = squadResult.rows[0]?.name || 'the squad'
+
   if (existing.rows.length > 0) {
-    const err = new Error(
-      existing.rows[0].status === 'accepted'
-        ? 'This person has already joined the squad'
-        : 'An invite has already been sent to this email'
-    )
-    err.status = 409
-    throw err
+    if (existing.rows[0].status === 'accepted') {
+      const err = new Error('This person has already joined the squad')
+      err.status = 409
+      throw err
+    }
+
+    // Pending invite already exists — resend the same link instead of
+    // creating a duplicate row or blocking the coach outright.
+    const inviteLink = `${process.env.FRONTEND_URL || ''}/invite/${existing.rows[0].token}`
+    const emailSent = await sendInviteEmail({ to: email, role, inviteLink, squadName })
+
+    return {
+      inviteId: existing.rows[0].id,
+      inviteLink,
+      emailSent,
+      resent: true,
+    }
   }
 
   const token = crypto.randomBytes(24).toString('hex')
@@ -36,9 +52,6 @@ async function createInvite(pool, { email, squadId, invitedBy, role = 'assistant
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, token`,
     [email, squadId, invitedBy, token, role, athleteId]
   )
-
-  const squadResult = await pool.query('SELECT name FROM squads WHERE id = $1', [squadId])
-  const squadName = squadResult.rows[0]?.name || 'the squad'
 
   if (!process.env.FRONTEND_URL) {
     // Fail loudly here instead of silently baking "undefined" into the
