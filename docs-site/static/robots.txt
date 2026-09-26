@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Algolia domain verification
+Algolia-Crawler-Verif: B46B9657BB4327C6
