@@ -188,14 +188,13 @@ Complete redesign of KickStat frontend with unified brand design system:
 - **UI Redesign:** 100% complete
 - **Testing:** 51/51 tests passing
 - **Documentation:** In progress
-
+- **Email notification system:** In progress
 ---
 
-## Action Items for Sprint 4 (Final Submission)
-1. Complete email notification system
-2. Finalize documentation (group report, API docs, user guide)
-3. Prepare presentation materials
-4. Conduct final user testing session
+## Action Items for Sprint 4 (Final Submission) 
+1. Finalize documentation (group report, API docs, user guide)
+2. Prepare presentation materials
+3. Conduct final user testing session
 
 ---
  
