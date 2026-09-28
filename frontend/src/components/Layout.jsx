@@ -1,10 +1,30 @@
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth, UserButton } from '@clerk/clerk-react'
 import ThemeToggle from './ThemeToggle'
-import { UserButton } from '@clerk/clerk-react'
+import { apiRequest } from '../lib/api'
 import './Layout.css'
 
 function Layout({ children }) {
   const location = useLocation()
+  const { getToken } = useAuth()
+  const [role, setRole] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    apiRequest('/api/account/me', { getToken })
+      .then((me) => {
+        if (!cancelled) setRole(me.role)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [getToken])
+
+  // Players watch live scores from their dashboard instead — the live match
+  // centre is a staff-only logging UI, so the nav item is hidden for them.
+  const isAthlete = role === 'athlete'
 
   const navItem = (to, label) => {
     const isActive = location.pathname === to || location.pathname.startsWith(`${to}/`)
@@ -29,7 +49,7 @@ function Layout({ children }) {
           {navItem('/tactics', 'Tactics')}
           {navItem('/sessions', 'Sessions')}
           {navItem('/events', 'Events')}
-          {navItem('/live', 'Live')}
+          {!isAthlete && navItem('/live', 'Live')}
           {navItem('/settings', 'Settings')}
         </nav>
         <div className="app-sidebar-footer">

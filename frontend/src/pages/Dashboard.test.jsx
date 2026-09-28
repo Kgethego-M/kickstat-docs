@@ -219,4 +219,51 @@ describe('Dashboard', () => {
     })
     expect(screen.queryByTestId('dash-live-card')).not.toBeInTheDocument()
   })
+
+  it('hides the invite assistant panel for athletes', async () => {
+    mocks.apiRequest.mockImplementation((path) => {
+      if (path.startsWith('/api/dashboard/summary')) return Promise.resolve(summaryPayload)
+      if (path === '/api/account/me') return Promise.resolve({ role: 'athlete' })
+      return Promise.resolve({})
+    })
+
+    renderWithRouter(<Dashboard />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /The full squad picture/i })).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: /Invite an Assistant/i })).not.toBeInTheDocument()
+      expect(screen.queryByPlaceholderText(/assistant@example.com/i)).not.toBeInTheDocument()
+    })
+  })
+
+  it('keeps the live score for athletes but hides the match centre link', async () => {
+    mocks.apiRequest.mockImplementation((path) => {
+      if (path.startsWith('/api/dashboard/summary')) {
+        return Promise.resolve({
+          ...summaryPayload,
+          liveEvent: {
+            kind: 'event',
+            id: 7,
+            title: 'vs City United',
+            homeLabel: 'Your squad',
+            awayLabel: 'City United',
+            homeScore: 2,
+            awayScore: 1,
+            link: '/live/7',
+          },
+        })
+      }
+      if (path === '/api/account/me') return Promise.resolve({ role: 'athlete' })
+      return Promise.resolve({})
+    })
+
+    renderWithRouter(<Dashboard />)
+
+    const card = await screen.findByTestId('dash-live-card')
+    expect(within(card).getByText('vs City United')).toBeInTheDocument()
+    // Players watch the score from the outside — no link into the centre.
+    await waitFor(() => {
+      expect(within(card).queryByText(/Open live match centre/i)).not.toBeInTheDocument()
+    })
+  })
 })

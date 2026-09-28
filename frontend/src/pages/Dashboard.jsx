@@ -58,6 +58,22 @@ function Dashboard() {
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteResult, setInviteResult] = useState(null)
   const [inviteError, setInviteError] = useState('')
+  // Players see the same squad intelligence minus the staff panels.
+  const [role, setRole] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    apiRequest('/api/account/me', { getToken })
+      .then((me) => {
+        if (!cancelled) setRole(me.role)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [getToken])
+
+  const isAthlete = role === 'athlete'
 
   const load = useCallback(async (silent = false) => {
     if (!silent) {
@@ -161,7 +177,7 @@ function Dashboard() {
           </Link>
         ) : (
           <Link to="/events" className="btn btn-gold dash-next-btn">
-            Schedule event
+            {isAthlete ? 'View events' : 'Schedule event'}
           </Link>
         )}
       </div>
@@ -205,9 +221,11 @@ function Dashboard() {
             <span className="dash-live-team">{liveEvent.awayLabel}</span>
           </div>
           <div className="dash-live-foot">
-            <Link to={liveEvent.link} className="dash-live-link">
-              Open live match centre &rsaquo;
-            </Link>
+            {!isAthlete && (
+              <Link to={liveEvent.link} className="dash-live-link">
+                Open live match centre &rsaquo;
+              </Link>
+            )}
             <span className="dash-live-hint">Score updates as goals are logged</span>
           </div>
         </div>
@@ -374,39 +392,41 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="dash-panel">
-          <span className="dash-chart-eyebrow">Staff</span>
-          <h3>Invite an Assistant</h3>
-          <p className="dash-invite-desc">
-            Send an invitation email so an assistant coach can join your squad
-            and help plan and log matchdays.
-          </p>
-          <form className="dash-invite-form" onSubmit={handleInvite}>
-            <input
-              type="email"
-              className="dash-invite-input"
-              placeholder="assistant@example.com"
-              aria-label="Assistant email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              required
-            />
-            <button type="submit" className="btn btn-gold dash-invite-btn" disabled={inviteSending}>
-              {inviteSending ? <Loader inline label="Sending..." /> : 'Send invite'}
-            </button>
-          </form>
-          {inviteError && <p className="dash-invite-error">{inviteError}</p>}
-          {inviteResult && (
-            <div className="dash-invite-success">
-              <p>
-                {inviteResult.emailSent
-                  ? 'Invitation email sent. Share this link as a fallback:'
-                  : 'Invite created — the email could not be delivered, so share this link instead:'}
-              </p>
-              <code className="dash-invite-link">{inviteResult.inviteLink}</code>
-            </div>
-          )}
-        </div>
+        {!isAthlete && (
+          <div className="dash-panel">
+            <span className="dash-chart-eyebrow">Staff</span>
+            <h3>Invite an Assistant</h3>
+            <p className="dash-invite-desc">
+              Send an invitation email so an assistant coach can join your squad
+              and help plan and log matchdays.
+            </p>
+            <form className="dash-invite-form" onSubmit={handleInvite}>
+              <input
+                type="email"
+                className="dash-invite-input"
+                placeholder="assistant@example.com"
+                aria-label="Assistant email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                required
+              />
+              <button type="submit" className="btn btn-gold dash-invite-btn" disabled={inviteSending}>
+                {inviteSending ? <Loader inline label="Sending..." /> : 'Send invite'}
+              </button>
+            </form>
+            {inviteError && <p className="dash-invite-error">{inviteError}</p>}
+            {inviteResult && (
+              <div className="dash-invite-success">
+                <p>
+                  {inviteResult.emailSent
+                    ? 'Invitation email sent. Share this link as a fallback:'
+                    : 'Invite created — the email could not be delivered, so share this link instead:'}
+                </p>
+                <code className="dash-invite-link">{inviteResult.inviteLink}</code>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Layout>
   )

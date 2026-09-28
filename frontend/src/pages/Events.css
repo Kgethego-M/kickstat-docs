@@ -422,6 +422,22 @@
   color: #2f855a;
 }
 
+/* The signed-in player's own answer on a row (my_rsvp). */
+.evt-tag-rsvp-available {
+  background: rgba(47, 133, 90, 0.12);
+  color: #2f855a;
+}
+
+.evt-tag-rsvp-unavailable {
+  background: rgba(179, 59, 59, 0.12);
+  color: #b33b3b;
+}
+
+.evt-tag-rsvp-maybe {
+  background: rgba(214, 158, 46, 0.14);
+  color: #b7791f;
+}
+
 .evt-actions {
   display: flex;
   align-items: center;

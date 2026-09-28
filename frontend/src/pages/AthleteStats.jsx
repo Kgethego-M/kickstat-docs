@@ -432,6 +432,9 @@ function AthleteStats() {
   const [returnDateDraft, setReturnDateDraft] = useState('')
 
   const isCoach = role === 'coach'
+  // Injury logging is staff work (coach or assistant); players can't log
+  // injuries — they see the history read-only.
+  const isStaff = role === 'coach' || role === 'assistant'
 
   // Snapshot "now" once on mount — used for the period cutoffs and the age
   // calculation below (same one-time pattern as the events form's nowLocal).
@@ -730,12 +733,14 @@ function AthleteStats() {
 
         <div className="ath-section-head">
           <h3 className="ath-section-title">Injury history</h3>
-          <button className="btn btn-ghost" onClick={() => setInjuryFormOpen((v) => !v)}>
-            {injuryFormOpen ? 'Cancel' : 'Log injury'}
-          </button>
+          {isStaff && (
+            <button className="btn btn-ghost" onClick={() => setInjuryFormOpen((v) => !v)}>
+              {injuryFormOpen ? 'Cancel' : 'Log injury'}
+            </button>
+          )}
         </div>
 
-        {injuryFormOpen && (
+        {isStaff && injuryFormOpen && (
           <form className="roster-form" onSubmit={handleLogInjury}>
             <div className="roster-form-grid">
               <label className="roster-form-wide">

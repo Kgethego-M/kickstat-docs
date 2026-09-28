@@ -133,6 +133,36 @@ describe('AthleteStats', () => {
     expect(screen.getByRole('button', { name: /Save injury/i })).toBeInTheDocument()
   })
 
+  it('lets assistants log injuries, not just the head coach', async () => {
+    mocks.apiRequest.mockImplementation((path) => {
+      if (path === '/api/athletes/5/stats') return Promise.resolve(basePayload)
+      if (path === '/api/account/me') return Promise.resolve({ role: 'assistant' })
+      return Promise.resolve({})
+    })
+
+    renderAt()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Log injury/i })).toBeInTheDocument()
+    })
+  })
+
+  it('hides the log injury form for athletes', async () => {
+    mocks.apiRequest.mockImplementation((path) => {
+      if (path === '/api/athletes/5/stats') return Promise.resolve(basePayload)
+      if (path === '/api/account/me') return Promise.resolve({ role: 'athlete' })
+      return Promise.resolve({})
+    })
+
+    renderAt()
+
+    await waitFor(() => {
+      expect(screen.getByText(/Thabo Mokoena/i)).toBeInTheDocument()
+    })
+
+    expect(screen.queryByRole('button', { name: /Log injury/i })).not.toBeInTheDocument()
+  })
+
   it('renders season cards from the server stats rather than the log totals', async () => {
     // stats.goals is 4 while the log only holds a single 2-goal row —
     // the card must show the server figure, not a client-side recount.
