@@ -1,26 +1,18 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD)
-  ? nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD.replace(/\s/g, ''), // strip spaces from app password
-      },
-    })
-  : null;
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 async function sendInviteEmail({ to, role, inviteLink, squadName }) {
-  if (!transporter) {
-    console.warn('GMAIL credentials not set — invite email skipped. Link:', inviteLink);
+  if (!resend) {
+    console.warn('RESEND_API_KEY not set — invite email skipped. Link:', inviteLink);
     return false;
   }
 
   const roleLabel = role === 'athlete' ? 'an athlete' : 'an assistant coach';
 
   try {
-    await transporter.sendMail({
-      from: `KickStat <${process.env.GMAIL_USER}>`,
+    await resend.emails.send({
+      from: 'KickStat <onboarding@resend.dev>',
       to,
       subject: `You've been invited to join ${squadName} on KickStat`,
       html: `
