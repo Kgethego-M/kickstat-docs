@@ -6,7 +6,7 @@
 ---
 
 ## Meeting 1: Sprint 3 Planning
-**Date:** Thursday, September 17, 2026  
+**Date:** Thursday, 17/09/2026  
 **Time:** 17:00 - 18:30  
 **Attendees:** All team members  
 
@@ -49,8 +49,8 @@
 ---
 
 ## Meeting 2: Bug Fixes Progress
-**Date:** Thursday, September 17, 2026  
-**Time:** 23:00 - 23:40  
+**Date:** Friday, September 18/09/2026
+**Time:** 15:00 - 15:40  
 **Attendees:** All team members 
 
 ### Progress Update
@@ -66,9 +66,9 @@
 ---
 
 ## Meeting 3: UI Redesign Review
-**Date:** Saturday, September 19, 2026  
+**Date:** Saturday, 19/09/2026 
 **Time:** 14:30 - 14:50
-**Attendees:** Kgethie, Kgotlelelo, Lindokuhle, Mmaphefo, Tasmiya   
+**Attendees:** All team members  
 
 ### Kgotlelelo's Redesign Summary
 Complete redesign of KickStat frontend with unified brand design system:
@@ -93,7 +93,7 @@ Complete redesign of KickStat frontend with unified brand design system:
 ---
 
 ## Meeting 4: Feature Testing & Validation
-**Date:** Saturday, September 19, 2026  
+**Date:** Sunday, 20/09/2026 
 **Time:** 22:00 - 22:20  
 **Attendees:** All team members  
 
@@ -113,7 +113,7 @@ Complete redesign of KickStat frontend with unified brand design system:
 ---
 
 ## Meeting 5: Sprint 3 Feature Completion
-**Date:** Sunday, September 20, 2026  
+**Date:** Monday, 21/09/2026 
 **Time:** 00:20 - 00:40 
 **Attendees:** All team members  
 
@@ -130,7 +130,7 @@ Complete redesign of KickStat frontend with unified brand design system:
 ---
 
 ## Meeting 6: Final Feature Additions
-**Date:** Monday, September 21, 2026  
+**Date:** Wednesday, 23/09/2026
 **Time:** 10:10 - 12:45  
 **Attendees:** All team members
 
@@ -150,7 +150,7 @@ Complete redesign of KickStat frontend with unified brand design system:
 ---
 
 ## Meeting 7: Gender Feature Implementation
-**Date:** Tuesday, September 22, 2026  
+**Date:** Thursday, 24/09/2026
 **Time:** 20:00 - 20:14  
 **Attendees:** All team members 
 
@@ -164,8 +164,8 @@ Complete redesign of KickStat frontend with unified brand design system:
 
 ---
 
-## Meeting 8: Final Testing & Documentation
-**Date:** Tuesday, September 22, 2026  
+## Meeting 8: Testing & Documentation
+**Date:** Saturday, 25/09/2026
 **Time:** 12:12 - 13:00  
 **Attendees:** All team members  
 
@@ -182,6 +182,23 @@ Complete redesign of KickStat frontend with unified brand design system:
 **Issue:** AI attribution requirement per COMS3011A AI Policy  
 **Decision:** All AI-assisted code must be documented in comments and reports
 
+---
+
+## Meeting 9: Final Testing & Documentation
+**Date:** Monday, 28/09/2026
+**Time:** 12:12 - 13:00  
+**Attendees:** All team members + Austin (Tutor)
+**Place:** MSL in person
+
+### Meeting Summary
+- Let Austin run through the app to make sure everything was functioning and ready for sprint 3.
+
+### Remaining Issues
+1. **Weather:** Bug in the weather code that needs to be fixed
+2. **Dark mode:** Some text visibility issues remain
+3. **Assistant Email:** Works locally but not on the deployed site
+4. **Squad landing page:** Needs to be added
+
 ### Sprint 3 Status
 - **Core Features:** 95% complete
 - **Bug Fixes:** 9/10 resolved
@@ -193,9 +210,8 @@ Complete redesign of KickStat frontend with unified brand design system:
 
 ## Action Items for Sprint 4 (Final Submission) 
 1. Finalize documentation (group report, API docs, user guide)
-2. Prepare presentation materials
+2. Prepare presentation materials to show Austin 
 3. Conduct final user testing session
 
----
  
 **Next meeting:** Sprint 4 planning - September 29, 2026
