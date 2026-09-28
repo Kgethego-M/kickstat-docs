@@ -107,4 +107,25 @@ async function getOwnedSquadIdForCoach(pool, clerkUserId) {
   return getOwnedSquadId(pool, clerkUserId);
 }
 
-module.exports = { getOrCreateUserId, getOwnedSquadId, getOwnedSquadIdForCoach };
+// Like getOwnedSquadId, but rejects players. Coaches and assistants keep
+// their staff abilities (scheduling, live logging, injuries); athletes get a
+// read-oriented view of the same squad, so every write path a staff member
+// would use goes through this guard.
+async function getOwnedSquadIdForStaff(pool, clerkUserId) {
+  const userId = await getOrCreateUserId(pool, clerkUserId);
+
+  const userResult = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
+  if (userResult.rows.length === 0) {
+    throw new Error(`User row missing for ${clerkUserId}`);
+  }
+
+  if (userResult.rows[0].role === 'athlete') {
+    const err = new Error('Players cannot perform this action');
+    err.status = 403;
+    throw err;
+  }
+
+  return getOwnedSquadId(pool, clerkUserId);
+}
+
+module.exports = { getOrCreateUserId, getOwnedSquadId, getOwnedSquadIdForCoach, getOwnedSquadIdForStaff };
