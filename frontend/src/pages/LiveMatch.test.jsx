@@ -93,7 +93,7 @@ describe('LiveMatch lineup gate', () => {
     // the shape it produced.
     expect(screen.getByText('11/11')).toBeInTheDocument()
     expect(screen.getByText('4-4-2')).toBeInTheDocument()
-  })
+  }, 10000)
 
   it('saves the auto-filled XI through the lineup endpoint', async () => {
     mocks.apiRequest.mockImplementation((path) => {

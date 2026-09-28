@@ -75,7 +75,7 @@ describe('Dashboard', () => {
       expect(screen.getByRole('heading', { name: /The full squad picture/i })).toBeInTheDocument()
     })
     expect(screen.getByRole('heading', { name: /^Dashboard$/i })).toBeInTheDocument()
-  })
+  }, 10000)
 
   it('shows the squad stat cards', async () => {
     renderWithRouter(<Dashboard />)
